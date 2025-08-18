@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <h2>PWA Icon Generator</h2>
+    <canvas id="canvas" style="border: 1px solid #ccc;"></canvas>
+    <div id="downloads"></div>
+
+    <script>
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+        const svgContent = `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+            <rect width="512" height="512" rx="80" fill="url(#gradient)"/>
+            <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#ff85b0;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#d52f74;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <circle cx="256" cy="256" r="160" fill="none" stroke="white" stroke-width="40"/>
+            <g fill="white" opacity="0.8">
+                <circle cx="180" cy="180" r="8"/>
+                <circle cx="340" cy="180" r="6"/>
+                <circle cx="180" cy="340" r="6"/>
+                <circle cx="340" cy="340" r="8"/>
+            </g>
+            <text x="256" y="440" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="white">OPAL</text>
+        </svg>`;
+
+        function generateIcons() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const downloadsDiv = document.getElementById('downloads');
+
+            sizes.forEach(size => {
+                canvas.width = size;
+                canvas.height = size;
+
+                const img = new Image();
+                const svgBlob = new Blob([svgContent], {type: 'image/svg+xml'});
+                const url = URL.createObjectURL(svgBlob);
+
+                img.onload = function() {
+                    ctx.clearRect(0, 0, size, size);
+                    ctx.drawImage(img, 0, 0, size, size);
+                    
+                    canvas.toBlob(function(blob) {
+                        const link = document.createElement('a');
+                        link.download = `icon-${size}x${size}.png`;
+                        link.href = URL.createObjectURL(blob);
+                        link.textContent = `Download ${size}x${size} icon`;
+                        link.style.display = 'block';
+                        link.style.margin = '5px 0';
+                        downloadsDiv.appendChild(link);
+                    });
+                    
+                    URL.revokeObjectURL(url);
+                };
+
+                img.src = url;
+            });
+        }
+
+        // Generate icons when page loads
+        window.onload = generateIcons;
+    </script>
+
+    <p><strong>Instructions:</strong></p>
+    <ol>
+        <li>Open this file in your browser</li>
+        <li>Download all the generated icon files</li>
+        <li>Place them in the <code>public/icons/</code> folder</li>
+        <li>Your PWA will be ready!</li>
+    </ol>
+</body>
+</html>

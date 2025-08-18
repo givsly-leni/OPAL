@@ -1,0 +1,34 @@
+/* Calendar page styles are now inline in the component for better responsiveness */
+.calendarContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.calendarPaper {
+  width: 100%;
+  max-width: 420px;
+  backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(214, 51, 108, 0.2);
+  box-shadow: 0 8px 32px rgba(214, 51, 108, 0.1);
+}
+
+@media (max-width: 768px) {
+  .calendarContainer {
+    padding: 16px 12px;
+  }
+  
+  .calendarPaper {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendarContainer {
+    padding: 12px 8px;
+  }
+}

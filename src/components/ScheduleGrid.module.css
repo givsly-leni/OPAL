@@ -1,0 +1,196 @@
+.scheduleWrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.tableRoot {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(214, 51, 108, 0.35);
+  border-collapse: separate;
+  width: 100%;
+  min-width: fit-content;
+}
+
+.tableHeadRow {
+  background: linear-gradient(90deg, #ffd1e5, #ffe5f3);
+}
+
+.hourHeader {
+  width: clamp(60px, 8vw, 80px);
+  font-weight: 700;
+  color: #c2255c;
+  letter-spacing: 0.5px;
+  font-size: clamp(10px, 2vw, 12px);
+  padding: clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px);
+  border-right: 1px solid rgba(214, 51, 108, 0.25);
+  border-bottom: 1px solid rgba(214, 51, 108, 0.35);
+}
+
+.empHeader {
+  color: #c2255c;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-size: clamp(10px, 2vw, 12px);
+  padding: clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px);
+  border-bottom: 1px solid rgba(214, 51, 108, 0.35);
+  text-align: center;
+}
+
+.timeCell {
+  font-weight: 600;
+  color: #d6336c;
+  padding: clamp(4px, 1vw, 6px) clamp(6px, 1.5vw, 8px);
+  border-right: 1px solid rgba(214, 51, 108, 0.25);
+  border-bottom: 1px solid rgba(214, 51, 108, 0.18);
+  width: clamp(60px, 8vw, 80px);
+  background: rgba(255, 255, 255, 0.65);
+  text-align: center;
+}
+
+.empCell {
+  padding: clamp(2px, 0.5vw, 4px) clamp(3px, 0.8vw, 6px);
+  border-bottom: 1px solid rgba(214, 51, 108, 0.18);
+  vertical-align: middle;
+}
+
+.apptPaper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border-color: rgba(214, 51, 108, 0.25);
+  min-height: 24px;
+}
+
+.apptBadge {
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.2;
+  word-break: break-word;
+  padding: clamp(2px, 0.5vw, 4px) clamp(3px, 0.8vw, 6px);
+  flex-grow: 1;
+  text-transform: capitalize;
+  font-size: clamp(9px, 1.8vw, 11px);
+  text-align: center;
+  cursor: pointer;
+}
+
+.addAction {
+  border: 1px dashed rgba(214, 51, 108, 0.35);
+  width: 100%;
+  height: clamp(24px, 4vw, 32px);
+  background: #fff;
+  min-height: 24px;
+}
+
+.formPanel {
+  width: 100%;
+  max-width: 400px;
+  min-width: 320px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #ffffff, #fff8fc);
+  border: 1px solid rgba(214, 51, 108, 0.35);
+}
+
+.deletePanel {
+  width: 100%;
+  max-width: 400px;
+  min-width: 320px;
+  flex-shrink: 0;
+  background: #fff4f9;
+  border: 1px solid rgba(214, 51, 108, 0.35);
+}
+
+.currentHour {
+  background: rgba(255, 214, 236, 0.45);
+}
+
+/* Responsive Media Queries */
+@media (max-width: 1024px) {
+  .scheduleWrapper {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .formPanel,
+  .deletePanel {
+    width: 100%;
+    max-width: none;
+  }
+  
+  .hourHeader,
+  .empHeader {
+    font-size: 11px;
+    padding: 6px 4px;
+  }
+  
+  .timeCell {
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+  
+  .apptBadge {
+    font-size: 10px;
+    padding: 3px 4px;
+  }
+}
+
+@media (max-width: 768px) {
+  .tableRoot {
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  
+  .hourHeader {
+    width: 50px;
+    font-size: 10px;
+    padding: 4px 2px;
+  }
+  
+  .timeCell {
+    width: 50px;
+    font-size: 11px;
+    padding: 3px 4px;
+  }
+  
+  .empHeader {
+    font-size: 10px;
+    padding: 4px 2px;
+  }
+  
+  .empCell {
+    padding: 2px 3px;
+  }
+  
+  .apptBadge {
+    font-size: 9px;
+    padding: 2px 3px;
+    line-height: 1.1;
+  }
+  
+  .apptPaper {
+    gap: 2px;
+    min-height: 20px;
+  }
+  
+  .addAction {
+    height: 20px;
+    min-height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .empHeader {
+    font-size: 9px;
+    padding: 3px 1px;
+  }
+  
+  .apptBadge {
+    font-size: 8px;
+    padding: 1px 2px;
+  }
+}
