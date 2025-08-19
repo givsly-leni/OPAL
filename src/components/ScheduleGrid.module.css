@@ -68,12 +68,13 @@
 
 /* Distinct color for appointment blocks (non‑green so green = available working time) */
 .apptPaperColored {
-  background: #ffe3a3 !important; /* uniform amber */
+  background: #d6336c !important; /* base similar to hour number color */
   border: none !important;
+  color: #fff !important;
 }
 .apptPaperColored:hover {
-  background: #ffd982 !important;
-  box-shadow: 0 2px 4px -2px rgba(242,177,48,0.55);
+  background: #b42a59 !important; /* a bit darker on hover */
+  box-shadow: 0 2px 4px -2px rgba(182,36,86,0.5);
 }
 
 .apptBadge {
@@ -120,12 +121,8 @@
 }
 
 /* New enhanced visibility styles */
-.hourStripe {
-  background: linear-gradient(90deg, #fff, #fff5fa);
-}
-.altHourStripe {
-  background: linear-gradient(90deg, #fff9fc, #ffeefa);
-}
+.hourStripe { background:#ffffff; }
+.altHourStripe { background:#fff6fa; }
 .hourDivider td, .hourDivider th {
   border-top: 2px solid #d6336c !important;
 }
@@ -158,9 +155,7 @@
 }
 
 /* Full-cell highlight when an appointment is present */
-.apptCellActive {
-  background: #ffe3a3 !important;
-}
+.apptCellActive { background: #fbe0eb !important; }
 
 /* Responsive Media Queries */
 @media (max-width: 1024px) {

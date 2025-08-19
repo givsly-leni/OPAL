@@ -1,2 +1,2 @@
 .wrapper { min-height:60vh; justify-content:center; }
-.innerPaper { max-width:380px; width:100%; backdrop-filter:blur(8px); background:rgba(255,255,255,0.7); }
+.innerPaper { max-width:380px; width:100%; background:#ffffff; }

@@ -199,32 +199,36 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                         >
                           {startCell ? (
                             <Paper radius="sm" p="2px 4px" className={`${styles.apptPaper} ${styles.apptPaperColored}`} style={{ border:'none', minHeight: `${Math.max(16, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 6, width:'100%' }}>
-                              <Badge color={color} variant="transparent" radius="sm" className={styles.apptBadge} onClick={()=>openEdit(e.id,slot)} title={`${startCell.appt.client}${startCell.appt.duration? ' • '+startCell.appt.duration+'′':''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${startCell.appt.description? '\n'+startCell.appt.description:''}` } style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'transparent', border:'none', color:'#7a4b00' }}>{startCell.appt.client}{startCell.appt.duration? ` (${startCell.appt.duration}′)`:''}</Badge>
+                              <Badge color={color} variant="filled" radius="sm" className={styles.apptBadge} onClick={()=>openEdit(e.id,slot)} title={`${startCell.appt.client}${startCell.appt.duration? ' • '+startCell.appt.duration+'′':''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${startCell.appt.description? '\n'+startCell.appt.description:''}` } style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.15)', border:'none', color:'#fff' }}>{startCell.appt.client}{startCell.appt.duration? ` (${startCell.appt.duration}′)`:''}</Badge>
                               <ActionIcon size="xs" variant="light" color={color} radius="sm" onClick={()=>openEdit(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconPencil size={8}/></ActionIcon>
                               <ActionIcon size="xs" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconX size={8}/></ActionIcon>
                             </Paper>
                           ) : (
-                            <ActionIcon
-                              variant="transparent"
-                              size="sm"
-                              color={color}
-                              onClick={()=>openNew(e.id,slot)}
-                              radius="sm"
-                              className={`${styles.addAction} plusButton`}
-                              style={{
-                                width:'100%',
-                                height:'14px',
-                                minHeight:'14px',
-                                display:'flex',
-                                alignItems:'center',
-                                justifyContent:'center',
-                                padding:0,
-                                border:'1px dashed rgba(214,51,108,0.4)',
-                                background: working ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.6)'
-                              }}
-                            >
-                              <IconPlus size={10}/>
-                            </ActionIcon>
+                            working ? (
+                              <ActionIcon
+                                variant="transparent"
+                                size="sm"
+                                color={color}
+                                onClick={()=>openNew(e.id,slot)}
+                                radius="sm"
+                                className={`${styles.addAction} plusButton`}
+                                style={{
+                                  width:'100%',
+                                  height:'14px',
+                                  minHeight:'14px',
+                                  display:'flex',
+                                  alignItems:'center',
+                                  justifyContent:'center',
+                                  padding:0,
+                                  border:'1px dashed rgba(214,51,108,0.4)',
+                                  background:'rgba(34,197,94,0.08)'
+                                }}
+                              >
+                                <IconPlus size={10}/>
+                              </ActionIcon>
+                            ) : (
+                              <div style={{ width:'100%', height:'14px', minHeight:'14px', opacity:0.25, background:'repeating-linear-gradient(45deg, #f5f0f3, #f5f0f3 4px, #ece2e7 4px, #ece2e7 8px)', border:'1px solid rgba(214,51,108,0.15)', borderRadius:4 }} title="Εκτός ωραρίου" />
+                            )
                           )}
                         </Table.Td>
                       );
