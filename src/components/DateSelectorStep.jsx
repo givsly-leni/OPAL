@@ -40,10 +40,14 @@ export function DateSelectorStep({ selectedDate, onChange, onContinue }) {
               hideOutsideDates
               previousIcon={<IconChevronLeft size={14} stroke={2} />}
               nextIcon={<IconChevronRight size={14} stroke={2} />}
-              getDayProps={(date) => {
-                const dayNum = dayjs(date).day();
+              getDayProps={(d) => {
+                const dayNum = dayjs(d).day();
                 const conf = BUSINESS_HOURS[dayNum];
-                return !conf ? { disabled: true, style:{ opacity:0.25 } } : { style:{ fontSize:12, height:32, width:32, borderRadius:8 } };
+                const isToday = dayjs().isSame(d, 'day');
+                if (!conf) {
+                  return { disabled: true, style: { opacity: isToday ? 0.5 : 0.25, border: isToday ? '1px solid #d6336c' : undefined, background: isToday ? 'rgba(214,51,108,0.08)' : undefined } };
+                }
+                return { style: { fontSize:12, height:32, width:32, borderRadius:8, fontWeight:600, background: isToday ? 'linear-gradient(135deg, rgba(214,51,108,0.25), rgba(214,51,108,0.07))' : undefined, border: isToday ? '2px solid #d6336c' : undefined, color: isToday ? '#a51147' : undefined } };
               }}
               styles={{
                 calendarHeader: { justifyContent:'space-between', marginBottom:4 },

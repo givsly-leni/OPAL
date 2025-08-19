@@ -19,9 +19,9 @@ import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix } from '
 import dayjs from 'dayjs';
 
 const EMPLOYEES = [
-  { id: 'aggelikh', name: 'Aggelikh' },
-  { id: 'emmanouela', name: 'Emmanouela' },
-  { id: 'hliana', name: 'Hliana' },
+  { id: 'aggelikh', name: 'Αγγελικη' },
+  { id: 'emmanouela', name: 'Εμμανουελα' },
+  { id: 'hliana', name: 'Ηλιανα' },
 ];
 
 const BUSINESS_HOURS = {
@@ -381,12 +381,14 @@ export function AppointmentForm({ appointments, setAppointments }) {
         <NumberInput
                 label="Διάρκεια (λεπτά)"
                 placeholder="π.χ. 30"
-                value={Number(form.duration) || 0}
-                onChange={(val) => setForm(f => ({ ...f, duration: val || 0 }))}
+                value={form.duration === '' ? '' : form.duration}
+                onChange={(val) => {
+                  setForm(f => ({ ...f, duration: val === '' ? '' : val }));
+                }}
                 min={5}
                 max={480}
                 step={5}
-                clampBehavior="strict"
+                clampBehavior="blur" /* allow temporary out-of-range / empty while typing */
                 inputMode="numeric"
                 allowDecimal={false}
                 hideControls

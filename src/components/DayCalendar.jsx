@@ -64,21 +64,27 @@ export function DayCalendar() {
             withCellSpacing={false}
             previousIcon={<IconChevronLeft size={16} stroke={2} />}
             nextIcon={<IconChevronRight size={16} stroke={2} />}
-            getDayProps={(date) => {
-              const dayNum = dayjs(date).day();
+            getDayProps={(d) => {
+              const dayNum = dayjs(d).day();
               const conf = BUSINESS_HOURS[dayNum];
-              return !conf ? 
-                { disabled: true, style: { opacity: 0.3 } } : 
-                { 
-                  style: { 
-                    fontSize: 'clamp(12px, 2vw, 14px)', 
-                    height: 'clamp(36px, 5vw, 44px)', 
-                    width: 'clamp(36px, 5vw, 44px)', 
-                    borderRadius: 12, 
-                    fontWeight: 500,
-                    cursor: 'pointer'
-                  } 
-                };
+              const isToday = dayjs().isSame(d, 'day');
+              if (!conf) {
+                return { disabled: true, style: { opacity: isToday ? 0.5 : 0.3, border: isToday ? '1px solid #d6336c' : undefined, background: isToday ? 'rgba(214,51,108,0.08)' : undefined } };
+              }
+              return {
+                style: {
+                  fontSize: 'clamp(12px, 2vw, 14px)',
+                  height: 'clamp(36px, 5vw, 44px)',
+                  width: 'clamp(36px, 5vw, 44px)',
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  position: 'relative',
+                  background: isToday ? 'linear-gradient(135deg, rgba(214,51,108,0.18), rgba(214,51,108,0.05))' : undefined,
+                  border: isToday ? '2px solid #d6336c' : undefined,
+                  color: isToday ? '#a51147' : undefined,
+                }
+              };
             }}
             styles={{
               calendarHeader: { 

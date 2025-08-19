@@ -3,9 +3,9 @@ import { Stack, Title, Text, Paper, Button, Alert, Group, SimpleGrid, Badge, Seg
 import dayjs from 'dayjs';
 
 const EMPLOYEES = [
-  { id: 'aggelikh', name: 'Aggelikh' },
-  { id: 'emmanouela', name: 'Emmanouela' },
-  { id: 'hliana', name: 'Hliana' },
+  { id: 'aggelikh', name: 'Αγγελικη' },
+  { id: 'emmanouela', name: 'Εμμανουελα' },
+  { id: 'hliana', name: 'Ηλιανα' },
 ];
 
 const BUSINESS_HOURS = {

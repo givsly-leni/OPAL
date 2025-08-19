@@ -66,6 +66,16 @@
   min-height: 24px;
 }
 
+/* Distinct color for appointment blocks (non‑green so green = available working time) */
+.apptPaperColored {
+  background: #ffe3a3 !important; /* uniform amber */
+  border: none !important;
+}
+.apptPaperColored:hover {
+  background: #ffd982 !important;
+  box-shadow: 0 2px 4px -2px rgba(242,177,48,0.55);
+}
+
 .apptBadge {
   font-weight: 600;
   white-space: normal;
@@ -107,6 +117,49 @@
 
 .currentHour {
   background: rgba(255, 214, 236, 0.45);
+}
+
+/* New enhanced visibility styles */
+.hourStripe {
+  background: linear-gradient(90deg, #fff, #fff5fa);
+}
+.altHourStripe {
+  background: linear-gradient(90deg, #fff9fc, #ffeefa);
+}
+.hourDivider td, .hourDivider th {
+  border-top: 2px solid #d6336c !important;
+}
+.halfHourDivider td, .halfHourDivider th {
+  border-top: 1px dashed rgba(214,51,108,0.35) !important;
+}
+.minorDivider td, .minorDivider th {
+  border-top: 1px solid rgba(214,51,108,0.12) !important;
+}
+.plusButton:hover {
+  background: #ffe1ef;
+  border-color: #d6336c;
+}
+.apptPaper {
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.apptPaper:hover {
+  background: #fff3d1;
+  box-shadow: 0 0 0 1px rgba(242,177,48,0.4), 0 2px 4px -2px rgba(242,177,48,0.4);
+}
+
+/* Green working-time background for empty slots */
+.workingSlot {
+  background: linear-gradient(90deg, rgba(34,197,94,0.10), rgba(34,197,94,0.22));
+  position: relative;
+  transition: background-color 120ms ease;
+}
+.workingSlot:hover {
+  background: linear-gradient(90deg, rgba(34,197,94,0.18), rgba(34,197,94,0.32));
+}
+
+/* Full-cell highlight when an appointment is present */
+.apptCellActive {
+  background: #ffe3a3 !important;
 }
 
 /* Responsive Media Queries */
