@@ -469,10 +469,26 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 <Button
                   type="submit"
                   size="md"
-                  color="pink"
-                  variant={form.client.trim() && !formError ? 'filled' : 'light'}
+                  // Force strong visible styling (some iPhones rendered the default as near-white)
+                  variant="filled"
                   disabled={!form.client.trim() || !!formError}
-                  style={{ flex: mode === 'edit' ? 1 : 2 }}
+                  style={{
+                    flex: mode === 'edit' ? 1 : 2,
+                    background: (!form.client.trim() || !!formError) ? '#fbe0eb' : '#d6336c',
+                    color: (!form.client.trim() || !!formError) ? '#c2255c' : '#ffffff',
+                    border: '1px solid #d6336c',
+                    fontWeight: 600,
+                    letterSpacing: 0.3,
+                    boxShadow: (!form.client.trim() || !!formError) ? 'none' : '0 3px 8px -3px rgba(214,51,108,0.55)',
+                    transition: 'background-color 160ms ease, box-shadow 160ms ease'
+                  }}
+                  styles={{
+                    root: {
+                      '&:hover': (!form.client.trim() || !!formError)
+                        ? { background: '#f7d1de' }
+                        : { background: '#c2255c' }
+                    }
+                  }}
                 >
                   {mode === 'edit' ? 'Ενημέρωση' : 'Αποθήκευση'} Ραντεβού
                 </Button>
