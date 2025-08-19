@@ -2,30 +2,7 @@
   publish = "dist"
   command = "npm run build"
 
-[[redirects]]
-  from = "/assets/*"
-  to = "/assets/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/icons/*"
-  to = "/icons/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/manifest.json"
-  to = "/manifest.json"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/sw.js"
-  to = "/sw.js"
-  status = 200
-  force = true
-
+# Single SPA fallback; assets will match fixed names, so no need for exemptions
 [[redirects]]
   from = "/*"
   to = "/index.html"
