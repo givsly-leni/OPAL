@@ -361,6 +361,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 clampBehavior="strict"
                 inputMode="numeric"
                 allowDecimal={false}
+                hideControls
                 size="md"
                 styles={{
                   label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
