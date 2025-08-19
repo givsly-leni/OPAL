@@ -190,13 +190,15 @@ export function AppointmentForm({ appointments, setAppointments }) {
   }, [phoneQuery]);
 
   function handleSelectSuggestion(cust) {
-    setForm(f => ({
-      ...f,
-      phone: cust.phone,
-      client: cust.name || f.client,
-  description: f.description || cust.notes || '',
-  clientInfo: f.clientInfo || cust.clientInfo || cust.info || ''
-    }));
+    setForm({
+      id: undefined,
+      client: cust.name || '',
+      phone: cust.phone || '',
+      description: cust.notes || '',
+      clientInfo: cust.clientInfo || cust.info || '',
+      durationSelect: '30',
+      duration: typeof form.duration === 'number' ? form.duration : 30
+    });
     setCustomerLoaded(true);
     setShowSuggestions(false);
   }
@@ -314,43 +316,67 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 }}
               />
 
-        <TextInput
-                label="Τηλέφωνο"
-                placeholder="69XXXXXXXX"
-                value={form.phone}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9+ ]/g, '');
-                  setForm(f => ({ ...f, phone: val }));
-                  setPhoneQuery(val);
-                  setShowSuggestions(true);
-                }}
-                onBlur={handlePhoneBlur}
-                description={customerLookupLoading ? 'Αναζήτηση πελάτη/σας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτη/σας' : undefined)}
-                size="md"
-                styles={{
-          root: { width: '100%' },
-          label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
-          input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
-                }}
-              />
-              {showSuggestions && customerSuggestions.length > 0 && (
-                <Paper withBorder shadow="sm" p={4} radius="md" style={{ marginTop: -8 }}>
-                  <Stack gap={2}>
-                    {customerSuggestions.map(cust => (
-                      <Button
-                        key={cust.id}
-                        variant="subtle"
-                        size="compact-sm"
-                        onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(cust); }}
-                        styles={{ root: { justifyContent: 'flex-start' } }}
-                      >
-                        <span style={{ fontWeight: 600, marginRight: 8 }}>{cust.name || '—'}</span>
-                        <span style={{ color: '#888', fontSize: 12 }}>{cust.phone}</span>
-                      </Button>
-                    ))}
-                  </Stack>
-                </Paper>
-              )}
+              <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                <TextInput
+                  label="Τηλέφωνο"
+                  placeholder="69XXXXXXXX"
+                  value={form.phone}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9+ ]/g, '');
+                    setForm(f => ({ ...f, phone: val }));
+                    setPhoneQuery(val);
+                    setShowSuggestions(true);
+                  }}
+                  onBlur={handlePhoneBlur}
+                  description={customerLookupLoading ? 'Αναζήτηση πελάτη/σας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτη/σας' : undefined)}
+                  size="md"
+                  styles={{
+                    root: { width: '100%', maxWidth: 360, margin: '0 auto' },
+                    label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
+                    input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
+                  }}
+                />
+                {showSuggestions && customerSuggestions.length > 0 && (
+                  <Paper
+                    withBorder
+                    shadow="md"
+                    radius="md"
+                    p={4}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: '100%',
+                      maxWidth: 360,
+                      zIndex: 30,
+                      marginTop: 4,
+                      maxHeight: 180,
+                      overflowY: 'auto',
+                      background: '#fff',
+                      border: '2px solid #e86aa6',
+                      boxShadow: '0 6px 18px -4px rgba(214,51,108,0.35)'
+                    }}
+                  >
+                    <Stack gap={4} style={{ width: '100%' }}>
+                      {customerSuggestions.map(cust => (
+                        <Button
+                          key={cust.id}
+                          variant="subtle"
+                          size="compact-sm"
+                          onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(cust); }}
+                          styles={{ root: { justifyContent: 'flex-start', width: '100%', padding: '6px 8px' } }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
+                            <span style={{ fontWeight: 600 }}>{cust.name || '—'}</span>
+                            <span style={{ color: '#888', fontSize: 11 }}>{cust.phone}</span>
+                          </div>
+                        </Button>
+                      ))}
+                    </Stack>
+                  </Paper>
+                )}
+              </div>
 
         <NumberInput
                 label="Διάρκεια (λεπτά)"
