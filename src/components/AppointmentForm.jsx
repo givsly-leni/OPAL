@@ -464,17 +464,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   Άκυρο
                 </Button>
                 
-                {mode === 'edit' && (
-                  <Button
-                    variant="light"
-                    color="red"
-                    size="md"
-                    onClick={handleDeleteConfirmation}
-                    style={{ flex: 1 }}
-                  >
-                    Διαγραφή
-                  </Button>
-                )}
+                
                 
                 <Button
                   type="submit"
