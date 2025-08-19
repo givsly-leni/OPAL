@@ -15,6 +15,7 @@ import {
   Divider
 } from '@mantine/core';
 import { saveAppointment, deleteAppointment } from '../services/appointmentService';
+import { getCustomerByPhone, saveCustomer } from '../services/customerService';
 import dayjs from 'dayjs';
 
 const EMPLOYEES = [
@@ -58,6 +59,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
   const hours = generateHoursForDate(date);
   
   const [form, setForm] = useState({
+    id: undefined, // existing appointment id when editing
     client: '',
     phone: '',
     description: '',
@@ -65,6 +67,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
     duration: 30
   });
   const [formError, setFormError] = useState('');
+  const [customerLookupLoading, setCustomerLookupLoading] = useState(false);
+  const [customerLoaded, setCustomerLoaded] = useState(false);
 
   const DURATION_OPTIONS = ["30", "45", "60", "90", "120", "custom"];
 
@@ -81,10 +85,11 @@ export function AppointmentForm({ appointments, setAppointments }) {
       
       console.log('Loading edit data:', { dateKey, employeeId, hour, existingAppointment, appointments });
       
-      if (existingAppointment) {
+    if (existingAppointment) {
         const duration = existingAppointment.duration || 30;
         
         setForm({
+      id: existingAppointment.id,
           client: existingAppointment.client || '',
           phone: existingAppointment.phone || '',
           description: existingAppointment.description || '',
@@ -104,6 +109,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
     
     const dateKey = dayjs(date).format('YYYY-MM-DD');
     const appointmentData = {
+      id: form.id, // will trigger update when present
       date: dateKey,
       employee: employeeId,
       time: hour,
@@ -117,12 +123,45 @@ export function AppointmentForm({ appointments, setAppointments }) {
       // Save to Firebase
       await saveAppointment(appointmentData);
       console.log('Appointment saved to Firebase:', appointmentData);
+
+      // Upsert customer profile (fire and forget intentionally after appointment save)
+      if (form.phone.trim()) {
+        saveCustomer({
+          phone: form.phone.trim(),
+            name: form.client.trim(),
+            client: form.client.trim(),
+            description: form.description.trim(),
+            lastAppointmentAt: new Date().toISOString()
+        }).catch(err => console.warn('Customer save error (non-blocking):', err));
+      }
       
       // Navigate back to the schedule
       navigate(`/appointment?date=${dayjs(date).format('YYYY-MM-DD')}`);
     } catch (error) {
       console.error('Error saving appointment:', error);
       setFormError('Σφάλμα κατά την αποθήκευση. Δοκιμάστε ξανά.');
+    }
+  }
+
+  async function handlePhoneBlur() {
+    const phone = form.phone.trim();
+    if (!phone) return;
+    setCustomerLookupLoading(true);
+    setCustomerLoaded(false);
+    try {
+      const customer = await getCustomerByPhone(phone);
+      if (customer) {
+        setForm(f => ({
+          ...f,
+          client: f.client || customer.name || '',
+          description: f.description || customer.notes || ''
+        }));
+        setCustomerLoaded(true);
+      }
+    } catch (err) {
+      console.warn('Customer lookup failed', err);
+    } finally {
+      setCustomerLookupLoading(false);
     }
   }
 
@@ -243,6 +282,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 placeholder="69XXXXXXXX"
                 value={form.phone}
                 onChange={(e) => setForm(f => ({ ...f, phone: e.target.value.replace(/[^0-9+ ]/g, '') }))}
+                onBlur={handlePhoneBlur}
+                description={customerLookupLoading ? 'Αναζήτηση πελάτισσας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτισσας' : undefined)}
                 size="md"
                 styles={{
                   label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
