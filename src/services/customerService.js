@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const COLLECTION_NAME = 'customers';
@@ -40,4 +40,26 @@ export async function saveCustomer(customer) {
   };
   await setDoc(doc(db, COLLECTION_NAME, key), data, { merge: true });
   return data;
+}
+
+// Search customers by phone prefix (simple starts-with) limited results
+export async function searchCustomersByPhonePrefix(prefix, max = 5) {
+  const normalized = phoneToKey(prefix);
+  if (!normalized) return [];
+  try {
+    // Firestore doesn't have direct 'startsWith' so we create a range query
+    // For numeric-only keys we can use >= prefix and < prefix + next unicode char
+    const start = normalized;
+    // Append '\uf8ff' (high code point) to capture all starting with the prefix
+    const end = normalized + '\uf8ff';
+    const colRef = collection(db, COLLECTION_NAME);
+    const q = query(colRef, where('phoneKey', '>=', start), where('phoneKey', '<=', end), orderBy('phoneKey'), limit(max));
+    const snap = await getDocs(q);
+    const results = [];
+    snap.forEach(d => results.push(d.data()));
+    return results;
+  } catch (err) {
+    console.error('Error searching customers by phone prefix', prefix, err);
+    return [];
+  }
 }

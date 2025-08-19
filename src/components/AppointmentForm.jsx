@@ -15,7 +15,7 @@ import {
   Divider
 } from '@mantine/core';
 import { saveAppointment, deleteAppointment } from '../services/appointmentService';
-import { getCustomerByPhone, saveCustomer } from '../services/customerService';
+import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix } from '../services/customerService';
 import dayjs from 'dayjs';
 
 const EMPLOYEES = [
@@ -69,6 +69,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
   const [formError, setFormError] = useState('');
   const [customerLookupLoading, setCustomerLookupLoading] = useState(false);
   const [customerLoaded, setCustomerLoaded] = useState(false);
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [phoneQuery, setPhoneQuery] = useState('');
 
   const DURATION_OPTIONS = ["30", "45", "60", "90", "120", "custom"];
 
@@ -163,6 +166,34 @@ export function AppointmentForm({ appointments, setAppointments }) {
     } finally {
       setCustomerLookupLoading(false);
     }
+  }
+
+  // Live phone input change handler with debounced search
+  useEffect(() => {
+    if (!phoneQuery || phoneQuery.replace(/[^0-9]/g, '').length < 3) {
+      setCustomerSuggestions([]);
+      return;
+    }
+    let active = true;
+    const t = setTimeout(async () => {
+      const results = await searchCustomersByPhonePrefix(phoneQuery, 6);
+      if (active) {
+        setCustomerSuggestions(results);
+        setShowSuggestions(true);
+      }
+    }, 250);
+    return () => { active = false; clearTimeout(t); };
+  }, [phoneQuery]);
+
+  function handleSelectSuggestion(cust) {
+    setForm(f => ({
+      ...f,
+      phone: cust.phone,
+      client: cust.name || f.client,
+      description: f.description || cust.notes || ''
+    }));
+    setCustomerLoaded(true);
+    setShowSuggestions(false);
   }
 
   function handleDeleteConfirmation() {
@@ -281,7 +312,12 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 label="Τηλέφωνο"
                 placeholder="69XXXXXXXX"
                 value={form.phone}
-                onChange={(e) => setForm(f => ({ ...f, phone: e.target.value.replace(/[^0-9+ ]/g, '') }))}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9+ ]/g, '');
+                  setForm(f => ({ ...f, phone: val }));
+                  setPhoneQuery(val);
+                  setShowSuggestions(true);
+                }}
                 onBlur={handlePhoneBlur}
                 description={customerLookupLoading ? 'Αναζήτηση πελάτισσας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτισσας' : undefined)}
                 size="md"
@@ -290,6 +326,24 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   input: { fontSize: 14, padding: '10px 12px' }
                 }}
               />
+              {showSuggestions && customerSuggestions.length > 0 && (
+                <Paper withBorder shadow="sm" p={4} radius="md" style={{ marginTop: -8 }}>
+                  <Stack gap={2}>
+                    {customerSuggestions.map(cust => (
+                      <Button
+                        key={cust.id}
+                        variant="subtle"
+                        size="compact-sm"
+                        onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(cust); }}
+                        styles={{ root: { justifyContent: 'flex-start' } }}
+                      >
+                        <span style={{ fontWeight: 600, marginRight: 8 }}>{cust.name || '—'}</span>
+                        <span style={{ color: '#888', fontSize: 12 }}>{cust.phone}</span>
+                      </Button>
+                    ))}
+                  </Stack>
+                </Paper>
+              )}
 
               <TextInput
                 label="Διαρκεια"
