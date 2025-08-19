@@ -298,9 +298,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
           <Divider />
 
           {/* Form */}
-          <form onSubmit={handleSave}>
-            <Stack gap="md">
-              <TextInput
+          <form onSubmit={handleSave} style={{ width: '100%' }}>
+            <Stack gap="md" align="center" style={{ textAlign: 'center' }}>
+        <TextInput
                 label="Όνομα Πελάτισσας"
                 placeholder="Εισάγετε το όνομα"
                 value={form.client}
@@ -308,12 +308,13 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 required
                 size="md"
                 styles={{
-                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
-                  input: { fontSize: 14, padding: '10px 12px' }
+          root: { width: '100%' },
+          label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
+          input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
                 }}
               />
 
-              <TextInput
+        <TextInput
                 label="Τηλέφωνο"
                 placeholder="69XXXXXXXX"
                 value={form.phone}
@@ -327,8 +328,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 description={customerLookupLoading ? 'Αναζήτηση πελάτη/σας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτη/σας' : undefined)}
                 size="md"
                 styles={{
-                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
-                  input: { fontSize: 14, padding: '10px 12px' }
+          root: { width: '100%' },
+          label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
+          input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
                 }}
               />
               {showSuggestions && customerSuggestions.length > 0 && (
@@ -350,7 +352,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 </Paper>
               )}
 
-              <NumberInput
+        <NumberInput
                 label="Διάρκεια (λεπτά)"
                 placeholder="π.χ. 30"
                 value={Number(form.duration) || 0}
@@ -364,8 +366,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 hideControls
                 size="md"
                 styles={{
-                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
-                  input: { fontSize: 14, padding: '10px 12px' }
+          root: { width: '100%' },
+          label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
+          input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
                 }}
               />
 
@@ -379,13 +382,15 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 value={form.description}
                 onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
                 styles={{
-                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
+                  root: { width: '100%' },
+                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
                   input: {
                     background: '#fff',
                     border: '1px solid rgba(214,51,108,0.35)',
                     fontSize: 14,
                     borderRadius: 8,
-                    padding: '10px 12px'
+                    padding: '10px 12px',
+                    textAlign: 'center'
                   }
                 }}
               />
@@ -399,13 +404,15 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 value={form.clientInfo}
                 onChange={(e) => setForm(f => ({ ...f, clientInfo: e.target.value }))}
                 styles={{
-                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
+                  root: { width: '100%' },
+                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
                   input: {
                     background: '#fff',
                     border: '1px solid rgba(214,51,108,0.35)',
                     fontSize: 14,
                     borderRadius: 8,
-                    padding: '10px 12px'
+                    padding: '10px 12px',
+                    textAlign: 'center'
                   }
                 }}
               />
