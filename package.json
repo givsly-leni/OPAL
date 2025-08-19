@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+  "dev": "vite",
+  "prebuild": "npm run icons",
+  "build": "npm run icons && vite build",
     "lint": "eslint .",
   "preview": "vite preview",
   "icons": "node scripts/generate-icons.mjs"
