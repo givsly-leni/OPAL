@@ -60,8 +60,8 @@ export const BUSINESS_HOURS = {
   6: { start: '09:00', end: '15:00' }
 };
 
-const SLOT_MINUTES = 5; // Granularity
-const SLOT_PIXEL_HEIGHT = 1; // Even more compact (half again)
+const SLOT_MINUTES = 15; // Granularity reverted to 15-minute frames
+const SLOT_PIXEL_HEIGHT = 6; // Adjust height for better visibility per 15-min slot
 
 function generateTimeSlotsForDate(date){
   const dayNum = dayjs(date).day();
