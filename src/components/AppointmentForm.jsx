@@ -321,8 +321,12 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   label="Τηλέφωνο"
                   placeholder="69XXXXXXXX"
                   value={form.phone}
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="tel"
                   onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9+ ]/g, '');
+                    const val = e.target.value.replace(/\D/g, ''); // keep only digits
                     setForm(f => ({ ...f, phone: val }));
                     setPhoneQuery(val);
                     setShowSuggestions(true);
@@ -333,7 +337,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   styles={{
                     root: { width: '100%', maxWidth: 360, margin: '0 auto' },
                     label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
-                    input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
+                    input: { fontSize: 14, padding: '10px 12px', textAlign: 'center', letterSpacing: '0.5px' }
                   }}
                 />
                 {showSuggestions && customerSuggestions.length > 0 && (
