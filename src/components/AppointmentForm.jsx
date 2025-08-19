@@ -15,6 +15,10 @@ import {
   Divider
 } from '@mantine/core';
 import { saveAppointment, deleteAppointment } from '../services/appointmentService';
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                pattern="[0-9 +]*"
 import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix } from '../services/customerService';
 import dayjs from 'dayjs';
 
@@ -199,7 +203,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
   function handleDeleteConfirmation() {
     alert('Delete button clicked');
     console.log('Delete button clicked');
-    const confirmMessage = `Είστε σίγουροι ότι θέλετε να διαγράψετε το ραντεβού της "${form.client}" στις ${hour}?\n\nΑυτή η ενέργεια δεν μπορεί να αναιρεθεί.`;
+    const confirmMessage = `Είστε σίγουροι ότι θέλετε να διαγράψετε το ραντεβού του/της "${form.client}" στις ${hour}?\n\nΑυτή η ενέργεια δεν μπορεί να αναιρεθεί.`;
     
     if (confirm(confirmMessage)) {
       console.log('User confirmed deletion');
@@ -319,7 +323,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   setShowSuggestions(true);
                 }}
                 onBlur={handlePhoneBlur}
-                description={customerLookupLoading ? 'Αναζήτηση πελάτισσας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτισσας' : undefined)}
+                description={customerLookupLoading ? 'Αναζήτηση πελάτη/σας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτισσας' : undefined)}
                 size="md"
                 styles={{
                   label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
@@ -345,11 +349,17 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 </Paper>
               )}
 
-              <TextInput
-                label="Διαρκεια"
-                placeholder="Εισάγετε τη διάρκεια"
-                value={form.duration}
-                onChange={(e) => setForm(f => ({ ...f, duration: e.target.value.replace(/[^0-9+ ]/g, '') }))}
+              <NumberInput
+                label="Διάρκεια (λεπτά)"
+                placeholder="π.χ. 30"
+                value={Number(form.duration) || 0}
+                onChange={(val) => setForm(f => ({ ...f, duration: val || 0 }))}
+                min={5}
+                max={480}
+                step={5}
+                clampBehavior="strict"
+                inputMode="numeric"
+                allowDecimal={false}
                 size="md"
                 styles={{
                   label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
