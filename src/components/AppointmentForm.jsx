@@ -15,10 +15,6 @@ import {
   Divider
 } from '@mantine/core';
 import { saveAppointment, deleteAppointment } from '../services/appointmentService';
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                pattern="[0-9 +]*"
 import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix } from '../services/customerService';
 import dayjs from 'dayjs';
 
@@ -328,7 +324,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   setShowSuggestions(true);
                 }}
                 onBlur={handlePhoneBlur}
-                description={customerLookupLoading ? 'Αναζήτηση πελάτη/σας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτισσας' : undefined)}
+                description={customerLookupLoading ? 'Αναζήτηση πελάτη/σας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτη/σας' : undefined)}
                 size="md"
                 styles={{
                   label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
