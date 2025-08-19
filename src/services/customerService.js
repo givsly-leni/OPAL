@@ -34,6 +34,7 @@ export async function saveCustomer(customer) {
     phone: customer.phone,
     name: customer.name || customer.client || '',
     notes: customer.notes || customer.description || '',
+  clientInfo: customer.clientInfo || customer.info || '',
     lastAppointmentAt: customer.lastAppointmentAt || now,
     updatedAt: now,
     createdAt: customer.createdAt || now,

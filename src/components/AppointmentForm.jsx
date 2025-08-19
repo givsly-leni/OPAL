@@ -67,6 +67,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
     client: '',
     phone: '',
     description: '',
+  clientInfo: '', // persistent client information (preferences, notes)
     durationSelect: '30',
     duration: 30
   });
@@ -100,6 +101,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
           client: existingAppointment.client || '',
           phone: existingAppointment.phone || '',
           description: existingAppointment.description || '',
+          clientInfo: existingAppointment.clientInfo || existingAppointment.customerInfo || '',
           durationSelect: '30',
           duration: duration
         });
@@ -124,6 +126,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
       phone: form.phone.trim(),
       duration: parseInt(form.duration, 10) || 30,
       description: form.description.trim()
+  ,clientInfo: form.clientInfo.trim()
     };
 
     try {
@@ -138,6 +141,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
             name: form.client.trim(),
             client: form.client.trim(),
             description: form.description.trim(),
+            clientInfo: form.clientInfo.trim(),
             lastAppointmentAt: new Date().toISOString()
         }).catch(err => console.warn('Customer save error (non-blocking):', err));
       }
@@ -194,7 +198,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
       ...f,
       phone: cust.phone,
       client: cust.name || f.client,
-      description: f.description || cust.notes || ''
+  description: f.description || cust.notes || '',
+  clientInfo: f.clientInfo || cust.clientInfo || cust.info || ''
     }));
     setCustomerLoaded(true);
     setShowSuggestions(false);
@@ -376,6 +381,26 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 maxRows={4}
                 value={form.description}
                 onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+                styles={{
+                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
+                  input: {
+                    background: '#fff',
+                    border: '1px solid rgba(214,51,108,0.35)',
+                    fontSize: 14,
+                    borderRadius: 8,
+                    padding: '10px 12px'
+                  }
+                }}
+              />
+
+              <Textarea
+                label="Σταθερές Πληροφορίες Πελάτισσας"
+                placeholder="Προτιμήσεις, αλλεργίες, ιστορικό... (αποθηκεύονται για μελλοντικά ραντεβού)"
+                autosize
+                minRows={2}
+                maxRows={6}
+                value={form.clientInfo}
+                onChange={(e) => setForm(f => ({ ...f, clientInfo: e.target.value }))}
                 styles={{
                   label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6 },
                   input: {
