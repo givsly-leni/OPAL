@@ -199,7 +199,23 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                         >
                           {startCell ? (
                             <Paper radius="sm" p="2px 4px" className={`${styles.apptPaper} ${styles.apptPaperColored}`} style={{ border:'none', minHeight: `${Math.max(16, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 6, width:'100%' }}>
-                              <Badge color={color} variant="filled" radius="sm" className={styles.apptBadge} onClick={()=>openEdit(e.id,slot)} title={`${startCell.appt.client}${startCell.appt.duration? ' • '+startCell.appt.duration+'′':''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${startCell.appt.description? '\n'+startCell.appt.description:''}` } style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.15)', border:'none', color:'#fff' }}>{startCell.appt.client}{startCell.appt.duration? ` (${startCell.appt.duration}′)`:''}</Badge>
+                              {(() => { 
+                                const desc = (startCell.appt.description || '').trim();
+                                const firstWord = desc ? desc.split(/\s+/)[0] : '';
+                                return (
+                                  <Badge
+                                    color={color}
+                                    variant="filled"
+                                    radius="sm"
+                                    className={styles.apptBadge}
+                                    onClick={()=>openEdit(e.id,slot)}
+                                    title={`${startCell.appt.client}${firstWord? ' • '+firstWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
+                                    style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.15)', border:'none', color:'#fff' }}
+                                  >
+                                    {startCell.appt.client}{firstWord ? ` (${firstWord})` : ''}
+                                  </Badge>
+                                );
+                              })()}
                               <ActionIcon size="xs" variant="light" color={color} radius="sm" onClick={()=>openEdit(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconPencil size={8}/></ActionIcon>
                               <ActionIcon size="xs" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconX size={8}/></ActionIcon>
                             </Paper>
