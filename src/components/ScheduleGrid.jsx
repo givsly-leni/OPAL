@@ -200,8 +200,10 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                           {startCell ? (
                             <Paper radius="sm" p="2px 4px" className={`${styles.apptPaper} ${styles.apptPaperColored}`} style={{ border:'none', minHeight: `${Math.max(16, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 6, width:'100%' }}>
                               {(() => { 
+                                const fullName = (startCell.appt.client || '').trim();
+                                const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
                                 const desc = (startCell.appt.description || '').trim();
-                                const firstWord = desc ? desc.split(/\s+/)[0] : '';
+                                const firstDescWord = desc ? desc.split(/\s+/)[0] : '';
                                 return (
                                   <Badge
                                     color={color}
@@ -209,10 +211,10 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                     radius="sm"
                                     className={styles.apptBadge}
                                     onClick={()=>openEdit(e.id,slot)}
-                                    title={`${startCell.appt.client}${firstWord? ' • '+firstWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
+                                    title={`${fullName}${firstDescWord? ' • '+firstDescWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
                                     style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.15)', border:'none', color:'#fff' }}
                                   >
-                                    {startCell.appt.client}{firstWord ? ` (${firstWord})` : ''}
+                                    {clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}
                                   </Badge>
                                 );
                               })()}
