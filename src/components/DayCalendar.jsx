@@ -66,16 +66,6 @@ export function DayCalendar() {
             >
               Πελάτισσες
             </Button>
-            <Button
-              component="a"
-              href="/employees"
-              color="violet"
-              variant="light"
-              size="md"
-              style={{ fontWeight: 600 }}
-            >
-              Εργαζόμενοι
-            </Button>
           </div>
           <DatePicker
             value={date}

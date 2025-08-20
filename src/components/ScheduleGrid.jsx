@@ -7,7 +7,38 @@ import { deleteAppointment, saveAppointment } from '../services/appointmentServi
 import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
 
-// Remove hardcoded EMPLOYEES and EMPLOYEE_SCHEDULE. Use props instead.
+// Employees (columns)
+const EMPLOYEES = [
+  { id: 'aggelikh', name: 'Αγγελικη' },
+  { id: 'emmanouela', name: 'Εμμανουελα' },
+  { id: 'hliana', name: 'Ηλιανα' },
+];
+
+// Per-employee working hours (weekday -> array of [start,end] ranges, 24h format)
+// 0=Sunday ... 6=Saturday
+const EMPLOYEE_SCHEDULE = {
+  aggelikh: {
+    2: [['10:00','16:00'], ['19:00','21:00']], // Tuesday
+    3: [['13:00','21:00']], // Wednesday
+    4: [['10:00','16:00'], ['19:00','21:00']], // Thursday
+    5: [['13:00','21:00']], // Friday
+    // 6: day off (Saturday)
+  },
+  emmanouela: {
+    2: [['13:00','21:00']],
+    3: [['13:00','21:00']],
+    4: [['13:00','21:00']],
+    5: [['09:00','17:00']],
+    6: [['09:00','15:00']],
+  },
+  hliana: {
+    2: [['13:00','21:00']],
+    3: [['10:00','18:00']],
+    4: [['13:00','21:00']],
+    5: [['13:00','21:00']],
+    6: [['09:00','15:00']],
+  }
+};
 
 // Color accents per employee
 const EMPLOYEE_COLORS = {
@@ -49,7 +80,7 @@ function generateBaseSlotsForDate(date){
   return slots;
 }
 
-export function ScheduleGrid({ date, appointments, setAppointments, employees }) {
+export function ScheduleGrid({ date, appointments, setAppointments }) {
   const [confirmState, setConfirmState] = useState({ open:false, employeeId:null, slot:null, client:'', apptId:null });
   const [dragState, setDragState] = useState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
   const [hoverTarget, setHoverTarget] = useState({ employee:null, slot:null, allowed:false });
@@ -131,7 +162,7 @@ export function ScheduleGrid({ date, appointments, setAppointments, employees })
   // Coverage map now respects dynamic boundaries; partial final segments produce additional slot entries.
   const coverageMap = useMemo(()=>{
     const map = {};
-    (employees || []).forEach(e => { map[e.id] = {}; });
+    EMPLOYEES.forEach(e => { map[e.id] = {}; });
     dayAppointments.forEach(appt => {
       const start = dayjs(`${dateKey}T${appt.time}`);
       const durationMin = parseInt(appt.duration || 30, 10);
@@ -149,7 +180,7 @@ export function ScheduleGrid({ date, appointments, setAppointments, employees })
       });
     });
     return map;
-  }, [dayAppointments, dateKey, slots, employees]);
+  }, [dayAppointments, dateKey, slots]);
 
   function getAppointmentStartCell(employeeId, slot) {
     const cell = coverageMap[employeeId]?.[slot];
@@ -159,16 +190,10 @@ export function ScheduleGrid({ date, appointments, setAppointments, employees })
 
   function isEmployeeWorking(employeeId, dateObj, slot){
     const dayNum = dayjs(dateObj).day();
-    const emp = (employees || []).find(e => e.id === employeeId);
-    if (!emp || !emp.schedule) return false;
-    const ranges = emp.schedule[dayNum]?.map(r => Array.isArray(r) ? r : [parseInt((r+'').split(':')[0],10), parseInt((r+'').split('-')[1],10)]) || [];
+    const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum];
+    if(!ranges) return false;
     // slot = 'HH:mm' – simple string compare works since fixed width
-    return ranges.some(([start,end]) => {
-      // Convert to HH:mm for comparison
-      const startStr = start.toString().padStart(2,'0')+':00';
-      const endStr = end.toString().padStart(2,'0')+':00';
-      return slot >= startStr && slot < endStr;
-    });
+    return ranges.some(([start,end]) => slot >= start && slot < end);
   }
 
     function getMaxDurationForSlot(employeeId, slot, excludeId){
@@ -300,8 +325,8 @@ export function ScheduleGrid({ date, appointments, setAppointments, employees })
             <Table.Thead>
               <Table.Tr className={styles.tableHeadRow}>
                 <Table.Th className={styles.hourHeader}>Ώρα</Table.Th>
-                {(employees || []).map((e,idx)=>(
-                  <Table.Th key={e.id} className={styles.empHeader} style={{ borderRight: idx===(employees.length-1)? 'none':'1px solid rgba(214,51,108,0.25)', minWidth: EMPLOYEE_CELL_MIN_WIDTH, fontSize: 'clamp(10px, 2vw, 12px)', padding: 'clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px)' }}>{e.name}</Table.Th>
+                {EMPLOYEES.map((e,idx)=>(
+                  <Table.Th key={e.id} className={styles.empHeader} style={{ borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)', minWidth: EMPLOYEE_CELL_MIN_WIDTH, fontSize: 'clamp(10px, 2vw, 12px)', padding: 'clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px)' }}>{e.name}</Table.Th>
                 ))}
               </Table.Tr>
             </Table.Thead>
@@ -326,7 +351,7 @@ export function ScheduleGrid({ date, appointments, setAppointments, employees })
                 return (
                   <Table.Tr key={slot} className={rowClass} style={{ height: `${intervalMin / SLOT_MINUTES * 16}px` }}>
                     <Table.Td className={styles.timeCell} style={{ fontSize: 'clamp(11px, 2vw, 13px)', fontWeight: 600, opacity:0.95, padding: '0 3px', lineHeight: 1.15, width: 'clamp(50px, 7vw, 70px)' }}>{displayLabel}</Table.Td>
-                    {(employees || []).map((e,idx)=>{
+                    {EMPLOYEES.map((e,idx)=>{ 
                       const startCell = getAppointmentStartCell(e.id, slot);
                       const covered = slotCovered(e.id, slot);
                       const color=EMPLOYEE_COLORS[e.id]||'gray'; 
@@ -345,7 +370,7 @@ export function ScheduleGrid({ date, appointments, setAppointments, employees })
                           key={e.id}
                           className={`${styles.empCell} ${!startCell && working ? styles.workingSlot : ''} ${apptCellClass} ${dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot ? (hoverTarget.allowed? styles.dropTargetAllowed : styles.dropTargetBlocked) : ''}`}
                           style={{
-                            borderRight: idx===(employees.length-1)? 'none':'1px solid rgba(214,51,108,0.25)',
+                            borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
                             minWidth: EMPLOYEE_CELL_MIN_WIDTH,
                             padding: '0 2px',
                             verticalAlign: 'middle'

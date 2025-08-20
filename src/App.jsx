@@ -6,12 +6,10 @@ import { ScheduleGrid } from './components/ScheduleGrid';
 import { AppointmentForm } from './components/AppointmentForm';
 import { InstallPrompt } from './components/InstallPrompt';
 import { subscribeToAppointments } from './services/appointmentService';
-import { getEmployees } from './services/employeeService';
 import dayjs from 'dayjs';
 import Customers from './components/Customers';
-import Employees from './components/Employees';
 
-function AppointmentPage({ appointments, setAppointments, employees }) {
+function AppointmentPage({ appointments, setAppointments }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const dateStr = searchParams.get('date');
@@ -56,7 +54,7 @@ function AppointmentPage({ appointments, setAppointments, employees }) {
         justifyContent: 'center',
         maxWidth: '1200px'
       }}>
-  <ScheduleGrid date={date} appointments={appointments} setAppointments={setAppointments} employees={employees || []} />
+        <ScheduleGrid date={date} appointments={appointments} setAppointments={setAppointments} />
       </div>
     </Container>
   );
@@ -64,18 +62,22 @@ function AppointmentPage({ appointments, setAppointments, employees }) {
 
 function App() {
   const [appointments, setAppointments] = useState({});
-  const [employees, setEmployees] = useState([]);
-
+  
   useEffect(() => {
-    // Appointments listener
+    console.log('Setting up Firebase real-time listener...');
+    // Subscribe to real-time updates from Firebase
     const unsubscribe = subscribeToAppointments((newAppointments) => {
+      console.log('Firebase data updated:', newAppointments);
       setAppointments(newAppointments);
     });
-    // Employees fetch
-    getEmployees().then(setEmployees);
-    return () => unsubscribe();
+    
+    // Cleanup subscription on component unmount
+    return () => {
+      console.log('Cleaning up Firebase listener');
+      unsubscribe();
+    };
   }, []);
-
+  
   return (
     <BrowserRouter>
       <MantineProvider
@@ -109,14 +111,9 @@ function App() {
               }}>
                 Opal Appointments
               </Title>
-              <div>
-                <Button component="a" href="/customers" color="white" variant="filled" size="md" style={{ fontWeight: 700, color: '#d52f74', marginRight: 12 }}>
-                  Πελάτισσες
-                </Button>
-                <Button component="a" href="/employees" color="white" variant="filled" size="md" style={{ fontWeight: 700, color: '#d52f74' }}>
-                  Εργαζόμενοι
-                </Button>
-              </div>
+              <Button component="a" href="/customers" color="white" variant="filled" size="md" style={{ fontWeight: 700, color: '#d52f74' }}>
+                Πελάτισσες
+              </Button>
             </div>
           }
           styles={{ 
@@ -138,10 +135,9 @@ function App() {
                 <DayCalendar />
               </Center>
             } />
-            <Route path="/appointment" element={<AppointmentPage appointments={appointments} setAppointments={setAppointments} employees={employees} />} />
-            <Route path="/appointment-form" element={<AppointmentForm appointments={appointments} setAppointments={setAppointments} employees={employees} />} />
+            <Route path="/appointment" element={<AppointmentPage appointments={appointments} setAppointments={setAppointments} />} />
+            <Route path="/appointment-form" element={<AppointmentForm appointments={appointments} setAppointments={setAppointments} />} />
             <Route path="/customers" element={<Customers />} />
-            <Route path="/employees" element={<Employees refreshEmployees={async () => setEmployees(await getEmployees())} />} />
           </Routes>
           <InstallPrompt />
         </AppShell>
