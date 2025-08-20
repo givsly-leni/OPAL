@@ -4,6 +4,7 @@ import styles from './ScheduleGrid.module.css';
 import { IconPlus, IconX, IconPencil, IconCircleCheck, IconClock, IconPhoneOff } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { deleteAppointment, saveAppointment } from '../services/appointmentService';
+import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
 
 // Employees (columns)
@@ -276,14 +277,21 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     if(!allowed) { handleDragEnd(); return; }
     try {
       // Save updated appointment (keep same id, change employee/time)
-      await saveAppointment({ ...appt, employee: employeeId, time: slot, date: dateKey });
+  const updated = { ...appt, employee: employeeId, time: slot, date: dateKey };
+  await saveAppointment(updated);
+  backupAppointment('save', updated);
     } catch(err){ console.error('Drag move save error', err); }
     handleDragEnd();
   };
 
   async function handleConfirmDelete(){
     if(confirmState.open && confirmState.apptId){
-      try { await deleteAppointment(confirmState.apptId); } catch(e){ console.error('Error deleting appointment', e); }
+      try {
+        // attempt to capture the appointment data before deletion
+        const appt = (appointments[dayjs(date).format('YYYY-MM-DD')]||[]).find(a=>a.id===confirmState.apptId);
+        if(appt) backupAppointment('delete', appt);
+        await deleteAppointment(confirmState.apptId);
+      } catch(e){ console.error('Error deleting appointment', e); }
     }
     setConfirmState({ open:false, employeeId:null, slot:null, client:'', apptId:null });
   }
@@ -295,7 +303,9 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     const current = appt.status || 'unconfirmed';
     const next = current === 'unconfirmed' ? 'confirmed' : current === 'confirmed' ? 'no-answer' : 'unconfirmed';
     try {
-      await saveAppointment({ ...appt, status: next });
+  const updated = { ...appt, status: next };
+  await saveAppointment(updated);
+  backupAppointment('save', updated);
     } catch(err){ console.error('Status toggle error', err); }
   };
 

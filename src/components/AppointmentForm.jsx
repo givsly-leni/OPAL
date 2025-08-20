@@ -16,6 +16,7 @@ import {
 } from '@mantine/core';
 import { saveAppointment, deleteAppointment } from '../services/appointmentService';
 import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix, searchCustomersByNamePrefix } from '../services/customerService';
+import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
 
 const EMPLOYEES = [
@@ -187,7 +188,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
 
     try {
       // Save to Firebase
-      await saveAppointment(appointmentData);
+  await saveAppointment(appointmentData);
+  backupAppointment('save', appointmentData);
       console.log('Appointment saved to Firebase:', appointmentData);
 
       // Upsert customer profile (fire and forget intentionally after appointment save)
