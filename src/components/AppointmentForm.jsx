@@ -24,6 +24,30 @@ const EMPLOYEES = [
   { id: 'hliana', name: 'Ηλιανα' },
 ];
 
+// Per-employee working hours (weekday -> array of [start,end]) matching ScheduleGrid
+const EMPLOYEE_SCHEDULE = {
+  aggelikh: {
+    2: [['10:00','16:00'], ['19:00','21:00']],
+    3: [['13:00','21:00']],
+    4: [['10:00','16:00'], ['19:00','21:00']],
+    5: [['13:00','21:00']],
+  },
+  emmanouela: {
+    2: [['13:00','21:00']],
+    3: [['13:00','21:00']],
+    4: [['13:00','21:00']],
+    5: [['09:00','17:00']],
+    6: [['09:00','15:00']],
+  },
+  hliana: {
+    2: [['13:00','21:00']],
+    3: [['10:00','18:00']],
+    4: [['13:00','21:00']],
+    5: [['13:00','21:00']],
+    6: [['09:00','15:00']],
+  }
+};
+
 const BUSINESS_HOURS = {
   0: null,
   1: null,
@@ -68,6 +92,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
     duration: 30
   });
   const [formError, setFormError] = useState('');
+  const [scheduleError, setScheduleError] = useState('');
   const [customerLookupLoading, setCustomerLookupLoading] = useState(false);
   const [customerLoaded, setCustomerLoaded] = useState(false);
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
@@ -77,6 +102,34 @@ export function AppointmentForm({ appointments, setAppointments }) {
   const DURATION_OPTIONS = ["30", "45", "60", "90", "120", "custom"];
 
   const employee = EMPLOYEES.find(e => e.id === employeeId);
+
+  // Calculate remaining free minutes from selected hour until either next appointment or shift end
+  useEffect(()=>{
+    if(!employeeId || !hour){ setScheduleError(''); return; }
+    const dayNum = dayjs(date).day();
+    const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum] || [];
+    // Find containing working range
+    const targetRange = ranges.find(([rs,re]) => hour >= rs && hour < re);
+    if(!targetRange){ setScheduleError('Εκτός ωραρίου εργαζόμενου'); return; }
+    const startMoment = dayjs(`${dayjs(date).format('YYYY-MM-DD')}T${hour}`);
+    const rangeEnd = dayjs(`${dayjs(date).format('YYYY-MM-DD')}T${targetRange[1]}`);
+    // Find next appointment after this start (excluding the one being edited)
+    const dateKey = dayjs(date).format('YYYY-MM-DD');
+    const empAppts = (appointments?.[dateKey]||[])
+      .filter(a => a.employee===employeeId && a.time !== hour && a.id !== form.id)
+      .sort((a,b)=>a.time.localeCompare(b.time));
+    let nextStart = null;
+    for(const a of empAppts){ if(a.time > hour){ nextStart = dayjs(`${dateKey}T${a.time}`); break; } }
+    const hardEnd = nextStart && nextStart.isBefore(rangeEnd) ? nextStart : rangeEnd;
+    let free = hardEnd.diff(startMoment,'minute');
+    if(free < 0) free = 0;
+    const needed = parseInt(form.duration || 0, 10);
+    if(needed && needed > free){
+      setScheduleError('Η διάρκεια είναι εκτός ορίων εργαζομένου');
+    } else {
+      setScheduleError('');
+    }
+  }, [employeeId, hour, date, appointments, form.id, form.duration]);
 
   // Load existing appointment data when in edit mode
   useEffect(() => {
@@ -109,6 +162,10 @@ export function AppointmentForm({ appointments, setAppointments }) {
     e.preventDefault();
     if (!form.client.trim()) {
       setFormError('Το όνομα είναι υποχρεωτικό');
+      return;
+    }
+    if (scheduleError) {
+      // prevent save if duration exceeds schedule
       return;
     }
     
@@ -403,6 +460,11 @@ export function AppointmentForm({ appointments, setAppointments }) {
           input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
                 }}
               />
+              {scheduleError && (
+                <Text size="xs" c="red.7" fw={600} style={{ marginTop: -6 }}>
+                  {scheduleError}
+                </Text>
+              )}
 
               
               <Textarea
@@ -454,6 +516,11 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   {formError}
                 </Text>
               )}
+              {scheduleError && !formError && (
+                <Text size="sm" c="red.7" fw={500} ta="center">
+                  {scheduleError}
+                </Text>
+              )}
 
               <Divider my="md" />
 
@@ -475,20 +542,20 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   size="md"
                   // Force strong visible styling (some iPhones rendered the default as near-white)
                   variant="filled"
-                  disabled={!form.client.trim() || !!formError}
+                  disabled={!form.client.trim() || !!formError || !!scheduleError}
                   style={{
                     flex: mode === 'edit' ? 1 : 2,
-                    background: (!form.client.trim() || !!formError) ? '#fbe0eb' : '#d6336c',
-                    color: (!form.client.trim() || !!formError) ? '#c2255c' : '#ffffff',
+                    background: (!form.client.trim() || !!formError || !!scheduleError) ? '#fbe0eb' : '#d6336c',
+                    color: (!form.client.trim() || !!formError || !!scheduleError) ? '#c2255c' : '#ffffff',
                     border: '1px solid #d6336c',
                     fontWeight: 600,
                     letterSpacing: 0.3,
-                    boxShadow: (!form.client.trim() || !!formError) ? 'none' : '0 3px 8px -3px rgba(214,51,108,0.55)',
+                    boxShadow: (!form.client.trim() || !!formError || !!scheduleError) ? 'none' : '0 3px 8px -3px rgba(214,51,108,0.55)',
                     transition: 'background-color 160ms ease, box-shadow 160ms ease'
                   }}
                   styles={{
                     root: {
-                      '&:hover': (!form.client.trim() || !!formError)
+                      '&:hover': (!form.client.trim() || !!formError || !!scheduleError)
                         ? { background: '#f7d1de' }
                         : { background: '#c2255c' }
                     }

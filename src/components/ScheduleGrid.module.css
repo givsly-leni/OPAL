@@ -157,6 +157,19 @@
 /* Full-cell highlight when an appointment is present (match dark appointment color) */
 .apptCellActive { background: #d6336c !important; }
 
+/* Drag & Drop target highlight */
+.dropTargetAllowed {
+  outline: 2px dashed #22c55e;
+  outline-offset: -2px;
+  background: linear-gradient(90deg, rgba(34,197,94,0.18), rgba(34,197,94,0.32)) !important;
+}
+.dropTargetBlocked {
+  outline: 2px dashed #e03131;
+  outline-offset: -2px;
+  background: repeating-linear-gradient(45deg,#ffe3e3,#ffe3e3 6px,#ffd6d6 6px,#ffd6d6 12px) !important;
+  opacity: 0.6;
+}
+
 /* Responsive Media Queries */
 @media (max-width: 1024px) {
   .scheduleWrapper {

@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Table, Text, Group, Badge, ActionIcon, Stack, Alert, Paper, Button } from '@mantine/core';
 import styles from './ScheduleGrid.module.css';
 import { IconPlus, IconX, IconPencil } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
-import { deleteAppointment } from '../services/appointmentService';
+import { deleteAppointment, saveAppointment } from '../services/appointmentService';
 import dayjs from 'dayjs';
 
 // Employees (columns)
@@ -79,6 +79,8 @@ function generateTimeSlotsForDate(date){
 
 export function ScheduleGrid({ date, appointments, setAppointments }) {
   const [confirmState, setConfirmState] = useState({ open:false, employeeId:null, slot:null, client:'', apptId:null });
+  const [dragState, setDragState] = useState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
+  const [hoverTarget, setHoverTarget] = useState({ employee:null, slot:null, allowed:false });
   const navigate = useNavigate();
   const dateKey = dayjs(date).format('YYYY-MM-DD');
   const slots = generateTimeSlotsForDate(date);
@@ -117,9 +119,36 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return ranges.some(([start,end]) => slot >= start && slot < end);
   }
 
-  function openNew(employeeId, slot) {
-    navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=new`);
-  }
+    function getMaxDurationForSlot(employeeId, slot, excludeId){
+      const dayNum = dayjs(date).day();
+      const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum] || [];
+      const startMoment = dayjs(`${dateKey}T${slot}`);
+      // find the working range that contains slot
+      let containing = null;
+      for(const [rs,re] of ranges){
+        if(slot >= rs && slot < re){ containing = [rs,re]; break; }
+      }
+      if(!containing) return 0;
+      const rangeEnd = dayjs(`${dateKey}T${containing[1]}`);
+      // find next appointment start for this employee after slot
+      let nextStart = null;
+      const empAppts = (appointments[dateKey]||[])
+        .filter(a=>a.employee===employeeId && (!excludeId || a.id !== excludeId))
+        .sort((a,b)=>a.time.localeCompare(b.time));
+      for(const a of empAppts){
+        if(a.time > slot){ nextStart = dayjs(`${dateKey}T${a.time}`); break; }
+      }
+      const hardEnd = nextStart && nextStart.isBefore(rangeEnd) ? nextStart : rangeEnd;
+      let minutes = hardEnd.diff(startMoment,'minute');
+      if(minutes < 0) minutes = 0;
+      // round down to slot granularity
+      minutes = Math.floor(minutes / SLOT_MINUTES) * SLOT_MINUTES;
+      return minutes;
+    }
+
+    function openNew(employeeId, slot) {
+      navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=new`);
+    }
   function openEdit(employeeId, slot) {
     navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=edit`);
   }
@@ -128,6 +157,50 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     const appointment = cell?.appt; if(!appointment) return;
     setConfirmState({ open:true, employeeId, slot, client: appointment.client || '', apptId: appointment.id });
   }
+
+  const canPlaceAppointment = useCallback((appt, targetEmployee, targetSlot) => {
+    if(!appt) return false;
+    const durationMin = parseInt(appt.duration || 30, 10);
+    // Ensure full duration fits in remaining free window
+    const maxFree = getMaxDurationForSlot(targetEmployee, targetSlot, appt.id);
+    if(maxFree < durationMin) return false;
+    // Also ensure slots sequence not overlapping (redundant because maxFree computed considering next appointments, but keep if logic changes)
+    const slotCount = Math.max(1, Math.ceil(durationMin / SLOT_MINUTES));
+    for(let i=0;i<slotCount;i++){
+      const s = dayjs(`${dateKey}T${targetSlot}`).add(i*SLOT_MINUTES,'minute').format('HH:mm');
+      const cell = coverageMap[targetEmployee]?.[s];
+      if(cell && !(cell.appt.id === appt.id)) return false;
+    }
+    return true;
+  }, [coverageMap, date, dateKey]);
+
+  const handleDragStart = (e, employeeId, slot, appt) => {
+    e.dataTransfer.effectAllowed = 'move';
+    setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
+  };
+  const handleDragEnd = () => {
+    setDragState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
+    setHoverTarget({ employee:null, slot:null, allowed:false });
+  };
+  const handleDragOver = (e, employeeId, slot) => {
+    if(!dragState.dragging) return;
+    e.preventDefault();
+    const allowed = canPlaceAppointment(dragState.appt, employeeId, slot);
+    setHoverTarget(prev => (prev.employee===employeeId && prev.slot===slot && prev.allowed===allowed) ? prev : { employee:employeeId, slot, allowed });
+    e.dataTransfer.dropEffect = allowed ? 'move' : 'none';
+  };
+  const handleDrop = async (e, employeeId, slot) => {
+    if(!dragState.dragging) return;
+    e.preventDefault();
+    const appt = dragState.appt;
+    const allowed = canPlaceAppointment(appt, employeeId, slot);
+    if(!allowed) { handleDragEnd(); return; }
+    try {
+      // Save updated appointment (keep same id, change employee/time)
+      await saveAppointment({ ...appt, employee: employeeId, time: slot, date: dateKey });
+    } catch(err){ console.error('Drag move save error', err); }
+    handleDragEnd();
+  };
 
   async function handleConfirmDelete(){
     if(confirmState.open && confirmState.apptId){
@@ -188,17 +261,19 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
             return (
                         <Table.Td 
                           key={e.id}
-                          className={`${styles.empCell} ${!startCell && working ? styles.workingSlot : ''} ${apptCellClass}`}
+                          className={`${styles.empCell} ${!startCell && working ? styles.workingSlot : ''} ${apptCellClass} ${dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot ? (hoverTarget.allowed? styles.dropTargetAllowed : styles.dropTargetBlocked) : ''}`}
                           style={{
                             borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
                             minWidth: EMPLOYEE_CELL_MIN_WIDTH,
                             padding: '0 2px',
                             verticalAlign: 'middle'
                           }}
+                          onDragOver={(ev)=>handleDragOver(ev,e.id,slot)}
+                          onDrop={(ev)=>handleDrop(ev,e.id,slot)}
                           rowSpan={startCell ? startCell.span : 1}
                         >
                           {startCell ? (
-                            <Paper radius="sm" p="2px 4px" className={`${styles.apptPaper} ${styles.apptPaperColored}`} style={{ border:'none', minHeight: `${Math.max(16, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 6, width:'100%' }}>
+                            <Paper draggable onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)} onDragEnd={handleDragEnd} radius="sm" p="2px 4px" className={`${styles.apptPaper} ${styles.apptPaperColored}`} style={{ border:'none', cursor:'grab', minHeight: `${Math.max(16, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 6, width:'100%' }}>
                               {(() => { 
                                 const fullName = (startCell.appt.client || '').trim();
                                 const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
