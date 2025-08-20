@@ -155,7 +155,7 @@
 }
 
 /* Full-cell highlight when an appointment is present (match dark appointment color) */
-.apptCellActive { background: #d6336c !important; }
+.apptCellActive { background: #d6336c; }
 
 /* Drag & Drop target highlight */
 .dropTargetAllowed {

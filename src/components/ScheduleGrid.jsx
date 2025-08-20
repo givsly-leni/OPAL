@@ -60,10 +60,12 @@ export const BUSINESS_HOURS = {
   6: { start: '09:00', end: '15:00' }
 };
 
-const SLOT_MINUTES = 15; // Granularity reverted to 15-minute frames
-const SLOT_PIXEL_HEIGHT = 6; // Adjust height for better visibility per 15-min slot
+// Revert to 15-minute base grid; will handle exceptional durations specially later.
+const SLOT_MINUTES = 15;
+const SLOT_PIXEL_HEIGHT = 6;
 
-function generateTimeSlotsForDate(date){
+// Generate base 15-min slot boundaries for the day (without dynamic subdivision)
+function generateBaseSlotsForDate(date){
   const dayNum = dayjs(date).day();
   const config = BUSINESS_HOURS[dayNum];
   if (!config) return [];
@@ -83,7 +85,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   const [hoverTarget, setHoverTarget] = useState({ employee:null, slot:null, allowed:false });
   const navigate = useNavigate();
   const dateKey = dayjs(date).format('YYYY-MM-DD');
-  const slots = generateTimeSlotsForDate(date);
+  const baseSlots = generateBaseSlotsForDate(date);
   const dayAppointments = useMemo(()=> {
     return (appointments[dateKey] || [])
       .map(a => ({ ...a, start: a.time }))
@@ -123,20 +125,61 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return cache;
   }, [sharedPhones]);
 
+  // Build dynamic slots: base 15' boundaries plus any appointment end times that fall between them (for exact durations like 40').
+  const slots = useMemo(()=>{
+    const set = new Set(baseSlots);
+    dayAppointments.forEach(appt => {
+      const start = dayjs(`${dateKey}T${appt.time}`);
+      const durationMin = parseInt(appt.duration || 30, 10);
+      const end = start.add(durationMin, 'minute');
+      if (durationMin % SLOT_MINUTES !== 0) {
+        // inject end boundary if within business hours and not already present
+        const endStr = end.format('HH:mm');
+        set.add(endStr);
+      }
+    });
+    // Sort times lexicographically (HH:mm fixed width) into array
+    return Array.from(set).sort();
+  }, [baseSlots, dayAppointments, dateKey]);
+
+  // Precompute next-slot map for variable interval minutes
+  const slotIntervals = useMemo(()=>{
+    const intervals = {};
+    for(let i=0;i<slots.length;i++){
+      const cur = slots[i];
+      const next = slots[i+1];
+      if(next){
+        const m = dayjs(`${dateKey}T${next}`).diff(dayjs(`${dateKey}T${cur}`),'minute');
+        intervals[cur] = m;
+      } else {
+        intervals[cur] = SLOT_MINUTES; // default for last row
+      }
+    }
+    return intervals;
+  }, [slots, dateKey]);
+
+  // Coverage map now respects dynamic boundaries; partial final segments produce additional slot entries.
   const coverageMap = useMemo(()=>{
     const map = {};
     EMPLOYEES.forEach(e => { map[e.id] = {}; });
     dayAppointments.forEach(appt => {
       const start = dayjs(`${dateKey}T${appt.time}`);
       const durationMin = parseInt(appt.duration || 30, 10);
-      const slotCount = Math.max(1, Math.ceil(durationMin / SLOT_MINUTES));
-      for (let i=0;i<slotCount;i++) {
-        const slotTime = start.add(i * SLOT_MINUTES, 'minute').format('HH:mm');
-        map[appt.employee][slotTime] = { appt, isStart: i===0, span: slotCount };
+      const end = start.add(durationMin, 'minute');
+      // Determine which slot starts fall within [start, end)
+      const coveredSlots = slots.filter(s => {
+        const sm = dayjs(`${dateKey}T${s}`);
+        return (sm.isSame(start) || sm.isAfter(start)) && sm.isBefore(end);
+      });
+      if(coveredSlots.length===0){
+        return;
       }
+      coveredSlots.forEach((s,i)=>{
+        map[appt.employee][s] = { appt, isStart: i===0, span: coveredSlots.length };
+      });
     });
     return map;
-  }, [dayAppointments, dateKey]);
+  }, [dayAppointments, dateKey, slots]);
 
   function getAppointmentStartCell(employeeId, slot) {
     const cell = coverageMap[employeeId]?.[slot];
@@ -156,14 +199,14 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
       const dayNum = dayjs(date).day();
       const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum] || [];
       const startMoment = dayjs(`${dateKey}T${slot}`);
-      // find the working range that contains slot
+      // find working range containing slot
       let containing = null;
       for(const [rs,re] of ranges){
         if(slot >= rs && slot < re){ containing = [rs,re]; break; }
       }
       if(!containing) return 0;
       const rangeEnd = dayjs(`${dateKey}T${containing[1]}`);
-      // find next appointment start for this employee after slot
+      // find next appointment start (could be non-15 if previously added)
       let nextStart = null;
       const empAppts = (appointments[dateKey]||[])
         .filter(a=>a.employee===employeeId && (!excludeId || a.id !== excludeId))
@@ -174,9 +217,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
       const hardEnd = nextStart && nextStart.isBefore(rangeEnd) ? nextStart : rangeEnd;
       let minutes = hardEnd.diff(startMoment,'minute');
       if(minutes < 0) minutes = 0;
-      // round down to slot granularity
-      minutes = Math.floor(minutes / SLOT_MINUTES) * SLOT_MINUTES;
-      return minutes;
+      return minutes; // no rounding; allow arbitrary minute durations
     }
 
     function openNew(employeeId, slot) {
@@ -194,18 +235,23 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   const canPlaceAppointment = useCallback((appt, targetEmployee, targetSlot) => {
     if(!appt) return false;
     const durationMin = parseInt(appt.duration || 30, 10);
-    // Ensure full duration fits in remaining free window
+    const startMoment = dayjs(`${dateKey}T${targetSlot}`);
+    const endMoment = startMoment.add(durationMin,'minute');
+    // Ensure fits in free window
     const maxFree = getMaxDurationForSlot(targetEmployee, targetSlot, appt.id);
     if(maxFree < durationMin) return false;
-    // Also ensure slots sequence not overlapping (redundant because maxFree computed considering next appointments, but keep if logic changes)
-    const slotCount = Math.max(1, Math.ceil(durationMin / SLOT_MINUTES));
-    for(let i=0;i<slotCount;i++){
-      const s = dayjs(`${dateKey}T${targetSlot}`).add(i*SLOT_MINUTES,'minute').format('HH:mm');
-      const cell = coverageMap[targetEmployee]?.[s];
-      if(cell && !(cell.appt.id === appt.id)) return false;
-    }
+    // Overlap check: any covered slot whose start < end and >= start belonging to other appt
+    const overlapping = slots.some(s => {
+      const sm = dayjs(`${dateKey}T${s}`);
+      if(sm.isSame(startMoment) || (sm.isAfter(startMoment) && sm.isBefore(endMoment))){
+        const cell = coverageMap[targetEmployee]?.[s];
+        if(cell && cell.appt.id !== appt.id) return true;
+      }
+      return false;
+    });
+    if(overlapping) return false;
     return true;
-  }, [coverageMap, date, dateKey]);
+  }, [coverageMap, date, dateKey, slots]);
 
   const handleDragStart = (e, employeeId, slot, appt) => {
     e.dataTransfer.effectAllowed = 'move';
@@ -265,13 +311,14 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {slots.map(slot=>{
+              {slots.map((slot,slotIdx)=>{
                 const now = dayjs();
                 const isToday = now.isSame(date,'day');
                 const isCurrentSlot = isToday && now.format('HH:mm')===slot;
                 const minutePart = slot.slice(3,5);
-                // Show every slot label now
+                // Show label for every slot (including dynamically inserted boundaries)
                 const displayLabel = slot;
+                const intervalMin = slotIntervals[slot] || SLOT_MINUTES;
                 const isHourStart = minutePart === '00';
                 const isHalfHour = minutePart === '30';
                 const rowClass = isCurrentSlot
@@ -282,15 +329,22 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                       ? `${styles.altHourStripe} ${styles.halfHourDivider}`
                       : `${styles.minorDivider}`;
                 return (
-                  <Table.Tr key={slot} className={rowClass}>
-                    <Table.Td className={styles.timeCell} style={{ fontSize: 'clamp(11px, 2vw, 13px)', fontWeight: 600, opacity: 0.95, padding: '0 3px', lineHeight: 1.15, width: 'clamp(50px, 7vw, 70px)' }}>{displayLabel}</Table.Td>
+                  <Table.Tr key={slot} className={rowClass} style={{ height: `${intervalMin / SLOT_MINUTES * 16}px` }}>
+                    <Table.Td className={styles.timeCell} style={{ fontSize: 'clamp(11px, 2vw, 13px)', fontWeight: 600, opacity:0.95, padding: '0 3px', lineHeight: 1.15, width: 'clamp(50px, 7vw, 70px)' }}>{displayLabel}</Table.Td>
                     {EMPLOYEES.map((e,idx)=>{ 
                       const startCell = getAppointmentStartCell(e.id, slot);
                       const covered = slotCovered(e.id, slot);
                       const color=EMPLOYEE_COLORS[e.id]||'gray'; 
                       if (covered && !startCell) return null;
                       const working = isEmployeeWorking(e.id, date, slot);
-            const apptCellClass = startCell ? styles.apptCellActive : '';
+                      let isShared = false; let sharedColor = null;
+                      if(startCell){
+                        const phoneKey = (startCell.appt.phone||'').trim();
+                        isShared = sharedPhones.has(phoneKey);
+                        sharedColor = isShared ? sharedColorCache[phoneKey] : null;
+                      }
+                      const apptCellClass = startCell ? styles.apptCellActive : '';
+                      const sharedCellStyle = startCell && isShared ? { background: sharedColor } : {};
             return (
                         <Table.Td 
                           key={e.id}
@@ -300,16 +354,13 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                             minWidth: EMPLOYEE_CELL_MIN_WIDTH,
                             padding: '0 2px',
                             verticalAlign: 'middle'
-                          }}
+                          , ...sharedCellStyle }}
                           onDragOver={(ev)=>handleDragOver(ev,e.id,slot)}
                           onDrop={(ev)=>handleDrop(ev,e.id,slot)}
                           rowSpan={startCell ? startCell.span : 1}
                         >
                           {startCell ? (
                             (() => {
-                              const phoneKey = (startCell.appt.phone||'').trim();
-                              const isShared = sharedPhones.has(phoneKey);
-                              const sharedColor = isShared ? sharedColorCache[phoneKey] : null;
                               const sharedStyle = isShared ? {
                                 background: sharedColor,
                                 color:'#fff'
