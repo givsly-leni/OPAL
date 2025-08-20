@@ -7,6 +7,7 @@ import { ScheduleGrid } from './components/ScheduleGrid';
 import { AppointmentForm } from './components/AppointmentForm';
 import { InstallPrompt } from './components/InstallPrompt';
 import { subscribeToAppointments } from './services/appointmentService';
+import { getFullDatabaseSnapshot, startFullDatabaseAutoBackup } from './services/backupService';
 import dayjs from 'dayjs';
 
 function AppointmentPage({ appointments, setAppointments }) {
@@ -62,22 +63,41 @@ function AppointmentPage({ appointments, setAppointments }) {
 
 function App() {
   const [appointments, setAppointments] = useState({});
-  
+  const [offline, setOffline] = useState(!navigator.onLine);
+  const [offlineSnapshot, setOfflineSnapshot] = useState(null);
+
   useEffect(() => {
-    console.log('Setting up Firebase real-time listener...');
-    // Subscribe to real-time updates from Firebase
-    const unsubscribe = subscribeToAppointments((newAppointments) => {
-      console.log('Firebase data updated:', newAppointments);
-      setAppointments(newAppointments);
-    });
-    
-    // Cleanup subscription on component unmount
+    // Start full DB auto-backup always
+    startFullDatabaseAutoBackup();
+  }, []);
+
+  useEffect(() => {
+    function handleOnline() { setOffline(false); }
+    function handleOffline() { setOffline(true); }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     return () => {
-      console.log('Cleaning up Firebase listener');
-      unsubscribe();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
-  
+
+  useEffect(() => {
+    if (offline) {
+      // Load from local snapshot
+      const snap = getFullDatabaseSnapshot();
+      setOfflineSnapshot(snap);
+      setAppointments(snap?.appointments || {});
+    } else {
+      // Subscribe to real-time updates from Firebase
+      const unsubscribe = subscribeToAppointments((newAppointments) => {
+        setAppointments(newAppointments);
+      });
+      setOfflineSnapshot(null);
+      return () => unsubscribe();
+    }
+  }, [offline]);
+
   return (
     <BrowserRouter>
       <MantineProvider
@@ -101,7 +121,8 @@ function App() {
               padding: '16px 20px', 
               background: 'linear-gradient(90deg,#ff85b0,#d52f74)', 
               display: 'flex', 
-              justifyContent: 'center' 
+              justifyContent: 'center',
+              position: 'relative'
             }}>
               <Title order={2} style={{ 
                 color: 'white', 
@@ -110,6 +131,24 @@ function App() {
               }}>
                 Opal Appointments
               </Title>
+              {offline && (
+                <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  bottom: -32,
+                  width: '100%',
+                  background: '#ffb3cd',
+                  color: '#a00',
+                  textAlign: 'center',
+                  fontWeight: 600,
+                  padding: '4px 0',
+                  borderRadius: 6,
+                  fontSize: 15,
+                  zIndex: 10
+                }}>
+                  ΕΚΤΟΣ ΣΥΝΔΕΣΗΣ: Μόνο προβολή (τα δεδομένα είναι από το τελευταίο τοπικό αντίγραφο ασφαλείας)
+                </div>
+              )}
             </div>
           }
           styles={{ 
