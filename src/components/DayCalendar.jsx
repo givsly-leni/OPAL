@@ -44,18 +44,39 @@ export function DayCalendar() {
         }}
       >
         <Stack gap="lg" align="center">
-          <Title 
-            order={3} 
-            ta="center" 
-            c="brand.7" 
-            style={{ 
-              letterSpacing: 0.5,
-              fontSize: 'clamp(18px, 3vw, 24px)'
-            }}
-          >
-            Επιλέξτε Ημέρα
-          </Title>
-          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', justifyContent: 'center' }}>
+            <Title 
+              order={3} 
+              ta="center" 
+              c="brand.7" 
+              style={{ 
+                letterSpacing: 0.5,
+                fontSize: 'clamp(18px, 3vw, 24px)'
+              }}
+            >
+              Επιλέξτε Ημέρα
+            </Title>
+            <Button
+              component="a"
+              href="/customers"
+              color="pink"
+              variant="light"
+              size="md"
+              style={{ fontWeight: 600 }}
+            >
+              Πελάτισσες
+            </Button>
+            <Button
+              component="a"
+              href="/employees"
+              color="violet"
+              variant="light"
+              size="md"
+              style={{ fontWeight: 600 }}
+            >
+              Εργαζόμενοι
+            </Button>
+          </div>
           <DatePicker
             value={date}
             onChange={handlePick}
