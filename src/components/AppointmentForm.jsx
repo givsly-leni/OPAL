@@ -15,7 +15,7 @@ import {
   Divider
 } from '@mantine/core';
 import { saveAppointment, deleteAppointment } from '../services/appointmentService';
-import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix } from '../services/customerService';
+import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix, searchCustomersByNamePrefix } from '../services/customerService';
 import dayjs from 'dayjs';
 
 const EMPLOYEES = [
@@ -98,6 +98,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [phoneQuery, setPhoneQuery] = useState('');
+  const [nameQuery, setNameQuery] = useState('');
+  const [nameSuggestions, setNameSuggestions] = useState([]);
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
 
   const DURATION_OPTIONS = ["30", "45", "60", "90", "120", "custom"];
 
@@ -220,6 +223,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
           client: f.client || customer.name || '',
           description: f.description || customer.notes || ''
         }));
+        if(customer.name){ setNameQuery(customer.name); }
         setCustomerLoaded(true);
       }
     } catch (err) {
@@ -246,8 +250,25 @@ export function AppointmentForm({ appointments, setAppointments }) {
     return () => { active = false; clearTimeout(t); };
   }, [phoneQuery]);
 
+  // Live name input change handler with debounced search (>=2 chars)
+  useEffect(() => {
+    if (!nameQuery || nameQuery.trim().length < 2) {
+      setNameSuggestions([]);
+      setShowNameSuggestions(false);
+      return;
+    }
+    let active = true;
+    const t = setTimeout(async () => {
+      const results = await searchCustomersByNamePrefix(nameQuery, 6);
+      if (active) {
+        setNameSuggestions(results);
+      }
+    }, 250);
+    return ()=>{ active=false; clearTimeout(t); };
+  }, [nameQuery]);
+
   function handleSelectSuggestion(cust) {
-    setForm({
+  setForm({
       id: undefined,
       client: cust.name || '',
       phone: cust.phone || '',
@@ -256,6 +277,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
       durationSelect: '30',
       duration: typeof form.duration === 'number' ? form.duration : 30
     });
+  if(cust.name){ setNameQuery(cust.name); }
     setCustomerLoaded(true);
     setShowSuggestions(false);
   }
@@ -359,19 +381,55 @@ export function AppointmentForm({ appointments, setAppointments }) {
           {/* Form */}
           <form onSubmit={handleSave} style={{ width: '100%' }}>
             <Stack gap="md" align="center" style={{ textAlign: 'center' }}>
-        <TextInput
-                label="Όνομα Πελάτισσας"
-                placeholder="Εισάγετε το όνομα"
-                value={form.client}
-                onChange={(e) => setForm(f => ({ ...f, client: e.target.value }))}
-                required
-                size="md"
-                styles={{
-          root: { width: '100%' },
-          label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
-          input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
-                }}
-              />
+        <div style={{ position:'relative', width:'100%' }}>
+          <TextInput
+            label="Όνομα Πελάτισσας"
+            placeholder="Εισάγετε το όνομα"
+            value={form.client}
+            onChange={(e) => {
+              const val = e.target.value;
+              setForm(f => ({ ...f, client: val }));
+              setNameQuery(val);
+              setShowNameSuggestions(true);
+            }}
+            onBlur={() => { setTimeout(()=>{ setShowNameSuggestions(false); }, 160); }}
+            onFocus={() => { if(nameSuggestions.length>0) setShowNameSuggestions(true); }}
+            onKeyDown={(e)=>{ if(e.key==='Escape'){ e.stopPropagation(); setShowNameSuggestions(false);} }}
+            required
+            size="md"
+            styles={{
+              root: { width: '100%' },
+              label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
+              input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
+            }}
+          />
+          {showNameSuggestions && nameSuggestions.length>0 && (
+            <Paper
+              withBorder
+              shadow="md"
+              radius="md"
+              p={4}
+              style={{ position:'absolute', top:'100%', left:'50%', transform:'translateX(-50%)', width:'100%', zIndex:31, marginTop:4, maxHeight:180, overflowY:'auto', background:'#fff', border:'2px solid #e86aa6', boxShadow:'0 6px 18px -4px rgba(214,51,108,0.35)' }}
+            >
+              <Stack gap={4} style={{ width:'100%' }}>
+        {nameSuggestions.map(cust => (
+                  <Button
+                    key={cust.id+cust.phone}
+                    variant="subtle"
+                    size="compact-sm"
+          onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(cust); setNameSuggestions([]); setShowNameSuggestions(false); }}
+                    styles={{ root: { justifyContent:'flex-start', width:'100%', padding:'6px 8px' } }}
+                  >
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', lineHeight:1.1 }}>
+                      <span style={{ fontWeight:600 }}>{cust.name || '—'}</span>
+                      <span style={{ color:'#888', fontSize:11 }}>{cust.phone}</span>
+                    </div>
+                  </Button>
+                ))}
+              </Stack>
+            </Paper>
+          )}
+        </div>
 
               <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
                 <TextInput
@@ -387,6 +445,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                     setForm(f => ({ ...f, phone: val }));
                     setPhoneQuery(val);
                     setShowSuggestions(true);
+                    setShowNameSuggestions(false); // hide name suggestions if user moves to entering phone
                   }}
                   onBlur={handlePhoneBlur}
                   description={customerLookupLoading ? 'Αναζήτηση πελάτη/σας...' : (customerLoaded ? 'Βρέθηκαν στοιχεία πελάτη/σας' : undefined)}
