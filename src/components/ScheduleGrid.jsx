@@ -90,6 +90,39 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
       .sort((a,b) => a.start.localeCompare(b.start));
   }, [appointments, dateKey]);
 
+  // Phones that appear on more than one employee (shared customer) for the day
+  const sharedPhones = useMemo(()=>{
+    const map = {};
+    (dayAppointments||[]).forEach(a=>{
+      const phone = (a.phone||'').trim();
+      if(!phone) return;
+      if(!map[phone]) map[phone] = new Set();
+      map[phone].add(a.employee);
+    });
+    return new Set(Object.entries(map).filter(([,emps])=>emps.size>1).map(([p])=>p));
+  }, [dayAppointments]);
+
+  // Distinct solid colors for each shared phone (duplicates). Repeats after palette end.
+  const SHARED_PHONE_COLORS = [
+    '#ff9800', // orange
+    '#2196f3', // blue
+    '#4caf50', // green
+    '#9c27b0', // purple
+    '#ff5722', // deep orange
+    '#3f51b5', // indigo
+    '#009688', // teal
+    '#e91e63'  // pink
+  ];
+  const sharedColorCache = useMemo(()=>{
+    const cache = {};
+    let idx = 0;
+    sharedPhones.forEach(p => {
+      cache[p] = SHARED_PHONE_COLORS[idx % SHARED_PHONE_COLORS.length];
+      idx++;
+    });
+    return cache;
+  }, [sharedPhones]);
+
   const coverageMap = useMemo(()=>{
     const map = {};
     EMPLOYEES.forEach(e => { map[e.id] = {}; });
@@ -273,29 +306,40 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                           rowSpan={startCell ? startCell.span : 1}
                         >
                           {startCell ? (
-                            <Paper draggable onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)} onDragEnd={handleDragEnd} radius="sm" p="2px 4px" className={`${styles.apptPaper} ${styles.apptPaperColored}`} style={{ border:'none', cursor:'grab', minHeight: `${Math.max(16, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 6, width:'100%' }}>
-                              {(() => { 
-                                const fullName = (startCell.appt.client || '').trim();
-                                const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
-                                const desc = (startCell.appt.description || '').trim();
-                                const firstDescWord = desc ? desc.split(/\s+/)[0] : '';
-                                return (
-                                  <Badge
-                                    color={color}
-                                    variant="filled"
-                                    radius="sm"
-                                    className={styles.apptBadge}
-                                    onClick={()=>openEdit(e.id,slot)}
-                                    title={`${fullName}${firstDescWord? ' • '+firstDescWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
-                                    style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.15)', border:'none', color:'#fff' }}
-                                  >
-                                    {clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}
-                                  </Badge>
-                                );
-                              })()}
-                              <ActionIcon size="xs" variant="light" color={color} radius="sm" onClick={()=>openEdit(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconPencil size={8}/></ActionIcon>
-                              <ActionIcon size="xs" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconX size={8}/></ActionIcon>
-                            </Paper>
+                            (() => {
+                              const phoneKey = (startCell.appt.phone||'').trim();
+                              const isShared = sharedPhones.has(phoneKey);
+                              const sharedColor = isShared ? sharedColorCache[phoneKey] : null;
+                              const sharedStyle = isShared ? {
+                                background: sharedColor,
+                                color:'#fff'
+                              } : {};
+                              return (
+                                <Paper draggable onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)} onDragEnd={handleDragEnd} radius="sm" p="2px 4px" className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`} style={{ border:'none', cursor:'grab', minHeight: `${Math.max(16, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 6, width:'100%', ...sharedStyle }}>
+                                  {(() => { 
+                                    const fullName = (startCell.appt.client || '').trim();
+                                    const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
+                                    const desc = (startCell.appt.description || '').trim();
+                                    const firstDescWord = desc ? desc.split(/\s+/)[0] : '';
+                                    return (
+                                      <Badge
+                                        color={color}
+                                        variant="filled"
+                                        radius="sm"
+                                        className={styles.apptBadge}
+                                        onClick={()=>openEdit(e.id,slot)}
+                                        title={`${fullName}${firstDescWord? ' • '+firstDescWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
+                                        style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.18)', border:'none', color:'#fff' }}
+                                      >
+                                        {clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}
+                                      </Badge>
+                                    );
+                                  })()}
+                                  <ActionIcon size="xs" variant="light" color={color} radius="sm" onClick={()=>openEdit(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconPencil size={8}/></ActionIcon>
+                                  <ActionIcon size="xs" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconX size={8}/></ActionIcon>
+                                </Paper>
+                              );
+                            })()
                           ) : (
                             working ? (
                               <ActionIcon
