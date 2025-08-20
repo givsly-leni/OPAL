@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Table, Text, Group, Badge, ActionIcon, Stack, Alert, Paper, Button } from '@mantine/core';
 import styles from './ScheduleGrid.module.css';
-import { IconPlus, IconX, IconPencil } from '@tabler/icons-react';
+import { IconPlus, IconX, IconPencil, IconCircleCheck, IconClock, IconPhoneOff } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { deleteAppointment, saveAppointment } from '../services/appointmentService';
 import dayjs from 'dayjs';
@@ -289,6 +289,16 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   }
   function handleCancelDelete(){ setConfirmState({ open:false, employeeId:null, slot:null, client:'', apptId:null }); }
 
+  // Cycle appointment status: unconfirmed -> confirmed -> no-answer -> unconfirmed
+  const cycleStatus = async (appt) => {
+    if(!appt) return;
+    const current = appt.status || 'unconfirmed';
+    const next = current === 'unconfirmed' ? 'confirmed' : current === 'confirmed' ? 'no-answer' : 'unconfirmed';
+    try {
+      await saveAppointment({ ...appt, status: next });
+    } catch(err){ console.error('Status toggle error', err); }
+  };
+
   if (slots.length === 0) {
     return (
       <Stack gap="sm">
@@ -365,8 +375,16 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                 background: sharedColor,
                                 color:'#fff'
                               } : {};
+                              // Status-based color tweak: make confirmed appointments green.
+                              const status = startCell.appt.status || 'unconfirmed';
+                              let statusStyle = {};
+                              const isConfirmed = status === 'confirmed';
+                              // Only add outline for confirmed shared appointments; do NOT override background for single appointments.
+                              if(isConfirmed && isShared) {
+                                statusStyle = { boxShadow: '0 3px 6px -2px rgba(0,0,0,0.45)' };
+                              }
                               return (
-                                <Paper draggable onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)} onDragEnd={handleDragEnd} radius="sm" p="2px 4px" className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`} style={{ border:'none', cursor:'grab', minHeight: `${Math.max(16, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 6, width:'100%', ...sharedStyle }}>
+                                <Paper draggable onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)} onDragEnd={handleDragEnd} radius="sm" p="2px 4px" className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`} style={{ border:'none', cursor:'grab', minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 4, width:'100%', ...sharedStyle, ...statusStyle }}>
                                   {(() => { 
                                     const fullName = (startCell.appt.client || '').trim();
                                     const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
@@ -386,8 +404,44 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                       </Badge>
                                     );
                                   })()}
-                                  <ActionIcon size="xs" variant="light" color={color} radius="sm" onClick={()=>openEdit(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconPencil size={8}/></ActionIcon>
-                                  <ActionIcon size="xs" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} style={{ minWidth: '12px', minHeight: '12px' }}><IconX size={8}/></ActionIcon>
+                                  {(() => {
+                                    const status = startCell.appt.status || 'unconfirmed';
+                                    let icon = <IconClock size={14}/>;
+                                    let statusColor = 'gray';
+                                    let title = 'Μη επιβεβαιωμένο';
+                                    let variant = 'outline';
+                                    const extraStyle = { };
+                                    if(status==='confirmed'){
+                                      icon = <IconCircleCheck size={14}/>;
+                                      statusColor='green';
+                                      title='Επιβεβαιωμένο';
+                                      variant='filled';
+                                      extraStyle.backgroundColor = '#2e7d32';
+                                      extraStyle.color = '#fff';
+                                    } else if(status==='no-answer'){
+                                      icon = <IconPhoneOff size={14}/>;
+                                      statusColor='red';
+                                      title='Δεν το σήκωσε';
+                                      variant='filled';
+                                      extraStyle.backgroundColor = '#c92a2a';
+                                      extraStyle.color = '#fff';
+                                    }
+                                    return (
+                                      <ActionIcon
+                                        size="sm"
+                                        variant={variant}
+                                        color={statusColor}
+                                        radius="sm"
+                                        title={title + ' (κλικ για αλλαγή)'}
+                                        onClick={(ev)=>{ ev.stopPropagation(); cycleStatus(startCell.appt); }}
+                                        style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...extraStyle }}
+                                      >
+                                        {icon}
+                                      </ActionIcon>
+                                    );
+                                  })()}
+                                  <ActionIcon size="sm" variant="light" color={color} radius="sm" onClick={()=>openEdit(e.id,slot)} title="Επεξεργασία" style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><IconPencil size={14}/></ActionIcon>
+                                  <ActionIcon size="sm" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} title="Διαγραφή" style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><IconX size={14}/></ActionIcon>
                                 </Paper>
                               );
                             })()
