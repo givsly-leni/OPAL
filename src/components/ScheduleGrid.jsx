@@ -80,8 +80,27 @@ function generateBaseSlotsForDate(date){
   return slots;
 }
 
+import { Modal } from '@mantine/core';
+
 export function ScheduleGrid({ date, appointments, setAppointments }) {
   const [confirmState, setConfirmState] = useState({ open:false, employeeId:null, slot:null, client:'', apptId:null });
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [calcResult, setCalcResult] = useState({ total: 0, cash: 0, card: 0, count: 0 });
+
+  function handleCalculateDay() {
+    let total = 0, cash = 0, card = 0, count = 0;
+    (dayAppointments || []).forEach(a => {
+      const price = typeof a.price === 'number' ? a.price : parseFloat(a.price);
+      if (!isNaN(price)) {
+        total += price;
+        count++;
+        if (a.paymentType === 'cash') cash += price;
+        else if (a.paymentType === 'card') card += price;
+      }
+    });
+    setCalcResult({ total, cash, card, count });
+    setCalcOpen(true);
+  }
   const [dragState, setDragState] = useState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
   const [hoverTarget, setHoverTarget] = useState({ employee:null, slot:null, allowed:false });
   const navigate = useNavigate();
@@ -319,7 +338,10 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '0 8px', boxSizing: 'border-box' }}>
-  <Paper withBorder shadow="md" radius="xl" p="lg" style={{ width: '100%', maxWidth: '1200px', background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(214,51,108,0.25)', overflowX: 'auto', position:'relative' }}>
+      <Button color="pink" variant="light" onClick={handleCalculateDay} style={{ marginTop: '-65px' }}>
+        Υπολογισμός Ημέρας
+      </Button>
+      <Paper withBorder shadow="md" radius="xl" p="lg" style={{ width: '100%', maxWidth: '1200px', background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(214,51,108,0.25)', overflowX: 'auto', position:'relative' }}>
         <div style={{ flex: 1, minWidth: '320px', width: '100%' }}>
           <Table stickyHeader horizontalSpacing="xs" verticalSpacing={6} fontSize="sm" className={styles.tableRoot} style={{ minWidth: 'fit-content' }}>
             <Table.Thead>
@@ -512,6 +534,17 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
           </>
         )}
       </Paper>
+
+      {calcOpen &&  <div opened={calcOpen} title="Σύνολο Ημέρας" centered >
+        <Stack gap={8}>
+          <Text size="lg" fw={700} c="pink.7">Σύνολο: {calcResult.total.toFixed(2)} €</Text>
+          <Text size="sm">Μετρητά: {calcResult.cash.toFixed(2)} €</Text>
+          <Text size="sm">Κάρτα: {calcResult.card.toFixed(2)} €</Text>
+          <Text size="sm" c="dimmed">Ραντεβού: {calcResult.count}</Text>
+          <Button mt="md" color="pink" variant="light" onClick={() => setCalcOpen(false)}>Κλείσιμο</Button>
+        </Stack>
+      </div>
+    }
     </div>
   );
 }

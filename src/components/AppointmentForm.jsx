@@ -88,7 +88,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
     client: '',
     phone: '',
     description: '',
-  clientInfo: '', // persistent client information (preferences, notes)
+    clientInfo: '', // persistent client information (preferences, notes)
+    price: '',
+    paymentType: '',
     durationSelect: '30',
     duration: 30
   });
@@ -103,7 +105,6 @@ export function AppointmentForm({ appointments, setAppointments }) {
   const [nameSuggestions, setNameSuggestions] = useState([]);
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
 
-  const DURATION_OPTIONS = ["30", "45", "60", "90", "120", "custom"];
 
   const employee = EMPLOYEES.find(e => e.id === employeeId);
 
@@ -150,11 +151,13 @@ export function AppointmentForm({ appointments, setAppointments }) {
         const duration = existingAppointment.duration || 30;
         
         setForm({
-      id: existingAppointment.id,
+          id: existingAppointment.id,
           client: existingAppointment.client || '',
           phone: existingAppointment.phone || '',
           description: existingAppointment.description || '',
           clientInfo: existingAppointment.clientInfo || existingAppointment.customerInfo || '',
+          price: existingAppointment.price || '',
+          paymentType: existingAppointment.paymentType || '',
           durationSelect: '30',
           duration: duration
         });
@@ -182,8 +185,10 @@ export function AppointmentForm({ appointments, setAppointments }) {
       client: form.client.trim(),
       phone: form.phone.trim(),
       duration: parseInt(form.duration, 10) || 30,
-      description: form.description.trim()
-  ,clientInfo: form.clientInfo.trim()
+      description: form.description.trim(),
+      clientInfo: form.clientInfo.trim(),
+      price: form.price !== '' ? parseFloat(form.price) : undefined,
+      paymentType: form.paymentType || ''
     };
 
     try {
@@ -276,8 +281,11 @@ export function AppointmentForm({ appointments, setAppointments }) {
       phone: cust.phone || '',
       description: cust.notes || '',
       clientInfo: cust.clientInfo || cust.info || '',
-      durationSelect: '30',
-      duration: typeof form.duration === 'number' ? form.duration : 30
+            price: cust.price || '',
+            paymentType: cust.paymentType || '',
+            durationSelect: '30',
+            duration: typeof form.duration === 'number' ? form.duration : 30
+          
     });
   if(cust.name){ setNameQuery(cust.name); }
     setCustomerLoaded(true);
@@ -402,7 +410,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
             styles={{
               root: { width: '100%' },
               label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
-              input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
+              input: { fontSize: 14, padding: '8px 10px', textAlign: 'center' }
             }}
           />
           {showNameSuggestions && nameSuggestions.length>0 && (
@@ -419,7 +427,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                     key={cust.id+cust.phone}
                     variant="subtle"
                     size="compact-sm"
-          onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(cust); setNameSuggestions([]); setShowNameSuggestions(false); }}
+                    onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(cust); setNameSuggestions([]); setShowNameSuggestions(false); }}
                     styles={{ root: { justifyContent:'flex-start', width:'100%', padding:'6px 8px' } }}
                   >
                     <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', lineHeight:1.1 }}>
@@ -455,7 +463,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   styles={{
                     root: { width: '100%', maxWidth: 360, margin: '0 auto' },
                     label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
-                    input: { fontSize: 14, padding: '10px 12px', textAlign: 'center', letterSpacing: '0.5px' }
+                    input: { fontSize: 14, padding: '8px 10px', textAlign: 'center', letterSpacing: '0.5px' }
                   }}
                 />
                 {showSuggestions && customerSuggestions.length > 0 && (
@@ -500,7 +508,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 )}
               </div>
 
-        <NumberInput
+            <NumberInput
                 label="Διάρκεια (λεπτά)"
                 placeholder="π.χ. 30"
                 value={form.duration === '' ? '' : form.duration}
@@ -516,9 +524,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 hideControls
                 size="md"
                 styles={{
-          root: { width: '100%' },
-          label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
-          input: { fontSize: 14, padding: '10px 12px', textAlign: 'center' }
+                  root: { width: '100%' },
+                  label: { fontSize: 14, fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' },
+                  input: { fontSize: 14, padding: '5px 6px', textAlign: 'center' }
                 }}
               />
               {scheduleError && (
@@ -529,8 +537,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
 
               
               <Textarea
-                label="Περιγραφή / Σημειώσεις"
-                placeholder="Προαιρετικές σημειώσεις..."
+                label="Περιγραφή"
+                placeholder=""
                 autosize
                 minRows={2}
                 maxRows={4}
@@ -544,15 +552,13 @@ export function AppointmentForm({ appointments, setAppointments }) {
                     border: '1px solid rgba(214,51,108,0.35)',
                     fontSize: 14,
                     borderRadius: 8,
-                    padding: '10px 12px',
                     textAlign: 'center'
                   }
                 }}
               />
-
               <Textarea
-                label="Σταθερές Πληροφορίες Πελάτισσας"
-                placeholder="Προτιμήσεις, αλλεργίες, ιστορικό... (αποθηκεύονται για μελλοντικά ραντεβού)"
+                label="Πληροφορίες Πελάτισσας"
+                placeholder="Προτιμήσεις, ιστορικό..."
                 autosize
                 minRows={2}
                 maxRows={6}
@@ -566,11 +572,36 @@ export function AppointmentForm({ appointments, setAppointments }) {
                     border: '1px solid rgba(214,51,108,0.35)',
                     fontSize: 14,
                     borderRadius: 8,
-                    padding: '10px 12px',
                     textAlign: 'center'
+
                   }
                 }}
               />
+
+              <TextInput
+                label="Τιμή (€)"
+                placeholder="Τιμή"
+                value={form.price}
+                onChange={e => setForm(f => ({ ...f, price: e.target.value.replace(/[^0-9.]/g, '') }))}
+                size="md"
+                style={{ width: '100%', maxWidth: 180, margin: '0 auto' }}
+                inputMode="decimal"
+                
+              />
+              <div style={{ width: '100%', maxWidth: 180, margin: '15px  auto'}}>
+                <label htmlFor="paymentType" style={{ display: 'block', fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' }}>
+                  Τρόπος Πληρωμής
+                </label>
+                <select
+                  id="paymentType"
+                  value={form.paymentType}
+                  onChange={e => setForm(f => ({ ...f, paymentType: e.target.value }))}
+                  style={{ width: '100%', padding: '5px 6px', borderRadius: 8, border: '1px solid #d6336c', fontSize: 14, textAlign: 'center', background: '#fff' }}
+                >
+                  <option value="cash">Μετρητά</option>
+                  <option value="card">Κάρτα</option>
+                </select>
+              </div>
 
               {formError && (
                 <Text size="sm" c="red.7" fw={500} ta="center">
