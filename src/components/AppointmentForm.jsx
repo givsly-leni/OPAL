@@ -344,7 +344,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
   }
 
   return (
-    <Container size="sm" py="md">
+    <Container size={false} py="md" style={{ maxWidth: '100vw', width: '100vw', margin: 0, padding: 0 }}>
       <Paper 
         p="md" 
         radius="lg" 
@@ -352,7 +352,10 @@ export function AppointmentForm({ appointments, setAppointments }) {
         shadow="lg"
         style={{
           background: 'linear-gradient(135deg, #ffffff, #fff8fc)',
-          border: '1px solid rgba(214, 51, 108, 0.25)'
+          border: '1px solid rgba(214, 51, 108, 0.25)',
+          maxWidth: '100vw',
+          width: '100vw',
+          margin: 0
         }}
       >
         <Stack gap="md">
@@ -389,7 +392,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
           <Divider />
 
           {/* Form */}
-          <form onSubmit={handleSave} style={{ width: '100%' }}>
+          <form onSubmit={handleSave} style={{ width: '100%', maxWidth: 720, margin: '0 auto' }}>
             <Stack gap="md" align="center" style={{ textAlign: 'center' }}>
         <div style={{ position:'relative', width:'100%' }}>
           <TextInput
