@@ -101,7 +101,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     setCalcResult({ total, cash, card, count });
     setCalcOpen(true);
   }
-  const [dragState, setDragState] = useState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null, touchStart:null });
+  const [dragState, setDragState] = useState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
   const [hoverTarget, setHoverTarget] = useState({ employee:null, slot:null, allowed:false });
   const navigate = useNavigate();
   const dateKey = dayjs(date).format('YYYY-MM-DD');
@@ -273,65 +273,13 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return true;
   }, [coverageMap, date, dateKey, slots]);
 
-  // For mobile: don't start drag on touchstart, but on first touchmove
-  const [pendingTouchDrag, setPendingTouchDrag] = useState(null);
   const handleDragStart = (e, employeeId, slot, appt) => {
-    if (e.type === 'touchstart') {
-      setPendingTouchDrag({ employeeId, slot, appt, start: { x: e.touches[0].clientX, y: e.touches[0].clientY } });
-    } else {
-      e.dataTransfer.effectAllowed = 'move';
-      setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt, touchStart: null });
-    }
+    e.dataTransfer.effectAllowed = 'move';
+    setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
   };
   const handleDragEnd = () => {
-    setDragState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null, touchStart:null });
+    setDragState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
     setHoverTarget({ employee:null, slot:null, allowed:false });
-  };
-
-  // Touch support for mobile drag-and-drop
-  const handleTouchMove = (e) => {
-    // If not dragging yet, but a touch drag is pending, start drag now
-    if (pendingTouchDrag && e.touches && e.touches.length > 0) {
-      setDragState({ dragging:true, sourceEmployee:pendingTouchDrag.employeeId, sourceSlot:pendingTouchDrag.slot, appt:pendingTouchDrag.appt, touchStart: { x: e.touches[0].clientX, y: e.touches[0].clientY } });
-      setPendingTouchDrag(null);
-    }
-    if (!dragState.dragging || !dragState.touchStart) return;
-    // Prevent scrolling while dragging
-    e.preventDefault();
-    // Find the cell under the finger and highlight it
-    const touch = e.touches[0];
-    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
-    let targetCell = elem;
-    while (targetCell && (!targetCell.dataset || !targetCell.dataset.emp || !targetCell.dataset.slot)) {
-      targetCell = targetCell.parentElement;
-    }
-    if (targetCell && targetCell.dataset.emp && targetCell.dataset.slot) {
-      setHoverTarget({ employee: targetCell.dataset.emp, slot: targetCell.dataset.slot, allowed: true });
-    } else {
-      setHoverTarget({ employee: null, slot: null, allowed: false });
-    }
-  };
-
-  const handleTouchEnd = (e, employeeId, slot) => {
-    // If drag never started, clear pending
-    if (pendingTouchDrag) {
-      setPendingTouchDrag(null);
-      return;
-    }
-    if (!dragState.dragging) return;
-    // Find the element under the touch end
-    const touch = e.changedTouches[0];
-    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
-    // Try to find the cell with data-emp and data-slot attributes
-    let targetCell = elem;
-    while (targetCell && (!targetCell.dataset || !targetCell.dataset.emp || !targetCell.dataset.slot)) {
-      targetCell = targetCell.parentElement;
-    }
-    if (targetCell && targetCell.dataset.emp && targetCell.dataset.slot) {
-      // Simulate drop
-      handleDrop({ preventDefault:()=>{}, dragging:true }, targetCell.dataset.emp, targetCell.dataset.slot);
-    }
-    handleDragEnd();
   };
   const handleDragOver = (e, employeeId, slot) => {
     if(!dragState.dragging) return;
@@ -447,20 +395,10 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                             borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
                             minWidth: EMPLOYEE_CELL_MIN_WIDTH,
                             padding: '0 2px',
-                            verticalAlign: 'middle',
-                            boxShadow: dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && hoverTarget.allowed ? '0 0 0 3px #d6336c88' : undefined,
-                            zIndex: dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && hoverTarget.allowed ? 10 : undefined,
-                            WebkitUserSelect: dragState.dragging ? 'none' : undefined,
-                            userSelect: dragState.dragging ? 'none' : undefined,
-                            touchAction: dragState.dragging ? 'none' : undefined,
-                            ...sharedCellStyle
-                          }}
+                            verticalAlign: 'middle'
+                          , ...sharedCellStyle }}
                           onDragOver={(ev)=>handleDragOver(ev,e.id,slot)}
                           onDrop={(ev)=>handleDrop(ev,e.id,slot)}
-                          data-emp={e.id}
-                          data-slot={slot}
-                          onTouchMove={handleTouchMove}
-                          onTouchEnd={ev => handleTouchEnd(ev, e.id, slot)}
                           rowSpan={startCell ? startCell.span : 1}
                         >
                           {startCell ? (
@@ -478,23 +416,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                 statusStyle = { boxShadow: '0 3px 6px -2px rgba(0,0,0,0.45)' };
                               }
                               return (
-                                <Paper draggable onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)} onDragEnd={handleDragEnd}
-                                  onTouchStart={ev=>handleDragStart(ev,e.id,slot,startCell.appt)}
-                                  radius="sm" p="2px 4px" className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`}
-                                  style={{
-                                    border:'none',
-                                    cursor:'grab',
-                                    minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    width:'100%',
-                                    WebkitUserSelect: dragState.dragging ? 'none' : undefined,
-                                    userSelect: dragState.dragging ? 'none' : undefined,
-                                    touchAction: dragState.dragging ? 'none' : undefined,
-                                    ...sharedStyle,
-                                    ...statusStyle
-                                  }}>
+                                <Paper draggable onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)} onDragEnd={handleDragEnd} radius="sm" p="2px 4px" className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`} style={{ border:'none', cursor:'grab', minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 4, width:'100%', ...sharedStyle, ...statusStyle }}>
                                   {(() => { 
                                     const fullName = (startCell.appt.client || '').trim();
                                     const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
