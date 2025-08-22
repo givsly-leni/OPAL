@@ -27,8 +27,11 @@ export function DayCalendar() {
       display: 'flex', 
       justifyContent: 'center', 
       alignItems: 'center',
-      width: '100%',
-      padding: '20px'
+      width: '100vw',
+      minHeight: '100vh',
+      padding: 0,
+      margin: 0,
+      background: 'linear-gradient(135deg, #fff0f6 0%, #f8f9fa 100%)'
     }}>
       <Paper 
         withBorder 
@@ -37,9 +40,16 @@ export function DayCalendar() {
         p="xl" 
         style={{ 
           width: '100%',
-          maxWidth: '420px',
+          maxWidth: '650px',
+          minHeight: '420px',
+          fontSize: '1.15rem',
+          margin: '24px auto',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
           backdropFilter: 'blur(14px)', 
-          background: 'rgba(255,255,255,0.95)',
+          background: 'rgba(255,255,255,0.97)',
           border: '1px solid rgba(214,51,108,0.2)'
         }}
       >
