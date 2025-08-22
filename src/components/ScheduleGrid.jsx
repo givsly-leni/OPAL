@@ -273,9 +273,11 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return true;
   }, [coverageMap, date, dateKey, slots]);
 
+  // For mobile: don't start drag on touchstart, but on first touchmove
+  const [pendingTouchDrag, setPendingTouchDrag] = useState(null);
   const handleDragStart = (e, employeeId, slot, appt) => {
     if (e.type === 'touchstart') {
-      setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt, touchStart: { x: e.touches[0].clientX, y: e.touches[0].clientY } });
+      setPendingTouchDrag({ employeeId, slot, appt, start: { x: e.touches[0].clientX, y: e.touches[0].clientY } });
     } else {
       e.dataTransfer.effectAllowed = 'move';
       setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt, touchStart: null });
@@ -288,6 +290,11 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
 
   // Touch support for mobile drag-and-drop
   const handleTouchMove = (e) => {
+    // If not dragging yet, but a touch drag is pending, start drag now
+    if (pendingTouchDrag && e.touches && e.touches.length > 0) {
+      setDragState({ dragging:true, sourceEmployee:pendingTouchDrag.employeeId, sourceSlot:pendingTouchDrag.slot, appt:pendingTouchDrag.appt, touchStart: { x: e.touches[0].clientX, y: e.touches[0].clientY } });
+      setPendingTouchDrag(null);
+    }
     if (!dragState.dragging || !dragState.touchStart) return;
     // Prevent scrolling while dragging
     e.preventDefault();
@@ -295,6 +302,11 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   };
 
   const handleTouchEnd = (e, employeeId, slot) => {
+    // If drag never started, clear pending
+    if (pendingTouchDrag) {
+      setPendingTouchDrag(null);
+      return;
+    }
     if (!dragState.dragging) return;
     // Find the element under the touch end
     const touch = e.changedTouches[0];
