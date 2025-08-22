@@ -298,7 +298,18 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     if (!dragState.dragging || !dragState.touchStart) return;
     // Prevent scrolling while dragging
     e.preventDefault();
-    // Optionally, you could show a visual indicator here
+    // Find the cell under the finger and highlight it
+    const touch = e.touches[0];
+    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+    let targetCell = elem;
+    while (targetCell && (!targetCell.dataset || !targetCell.dataset.emp || !targetCell.dataset.slot)) {
+      targetCell = targetCell.parentElement;
+    }
+    if (targetCell && targetCell.dataset.emp && targetCell.dataset.slot) {
+      setHoverTarget({ employee: targetCell.dataset.emp, slot: targetCell.dataset.slot, allowed: true });
+    } else {
+      setHoverTarget({ employee: null, slot: null, allowed: false });
+    }
   };
 
   const handleTouchEnd = (e, employeeId, slot) => {
@@ -436,8 +447,11 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                             borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
                             minWidth: EMPLOYEE_CELL_MIN_WIDTH,
                             padding: '0 2px',
-                            verticalAlign: 'middle'
-                          , ...sharedCellStyle }}
+                            verticalAlign: 'middle',
+                            boxShadow: dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && hoverTarget.allowed ? '0 0 0 3px #d6336c88' : undefined,
+                            zIndex: dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && hoverTarget.allowed ? 10 : undefined,
+                            ...sharedCellStyle
+                          }}
                           onDragOver={(ev)=>handleDragOver(ev,e.id,slot)}
                           onDrop={(ev)=>handleDrop(ev,e.id,slot)}
                           data-emp={e.id}
