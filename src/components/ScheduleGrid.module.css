@@ -7,6 +7,7 @@
 }
 
 .tableRoot {
+  touch-action: none; /* disables Safari scroll interference */
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(214, 51, 108, 0.35);
@@ -164,6 +165,8 @@
   outline-offset: -2px;
   background: linear-gradient(90deg, rgba(34,197,94,0.18), rgba(34,197,94,0.32)) !important;
 }
+
+
 .dropTargetBlocked {
   outline: 2px dashed #e03131;
   outline-offset: -2px;
@@ -226,6 +229,8 @@
   .tableRoot {
     border-radius: 8px;
     font-size: 12px;
+    touch-action: none; /* disables Safari scroll interference */
+
   }
   
   .hourHeader {
