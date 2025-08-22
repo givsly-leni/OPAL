@@ -42,7 +42,35 @@ export default function Customers() {
   }
 
   return (
-  <Paper shadow="md" radius="lg" p={24} style={{ maxWidth: 900, margin: '32px auto', background: 'rgba(255,255,255,0.96)', border: '1px solid #ffe0eb' }}>
+    <div style={{
+      width: '100vw',
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #fff0f6 0%, #f8f9fa 100%)',
+      margin: 0,
+      padding: 0
+    }}>
+      <Paper
+        shadow="lg"
+        radius="xl"
+        p={32}
+        withBorder
+        style={{
+          width: '100%',
+          maxWidth: '900px',
+          minHeight: '600px',
+          margin: '40px auto',
+          background: 'rgba(255,255,255,0.97)',
+          border: '1px solid #ffe0eb',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          boxShadow: '0 8px 32px -8px rgba(214,51,108,0.10)'
+        }}
+      >
       <Group mb="md" justify="space-between" align="center">
         <h2 style={{ color: '#d52f74', fontWeight: 700, letterSpacing: 1, margin: 0 }}>Πελάτισσες</h2>
         <Button color="pink" variant="light" onClick={() => navigate('/')} style={{ fontWeight: 600 }}>
@@ -102,6 +130,7 @@ export default function Customers() {
           <Button variant="outline" onClick={() => setModalOpen(false)}>Άκυρο</Button>
         </Group>
       </Modal>
-  </Paper>
+    </Paper>
+  </div>
   );
 }
