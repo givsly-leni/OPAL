@@ -187,7 +187,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
       duration: parseInt(form.duration, 10) || 30,
       description: form.description.trim(),
       clientInfo: form.clientInfo.trim(),
-      price: form.price !== '' ? parseFloat(form.price) : undefined,
+  price: form.price !== '' ? parseFloat(form.price) : null,
       paymentType: form.paymentType || ''
     };
 
