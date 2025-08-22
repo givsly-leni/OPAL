@@ -90,7 +90,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
     description: '',
     clientInfo: '', // persistent client information (preferences, notes)
     price: '',
-    paymentType: '',
+    paymentType: 'cash',
     durationSelect: '30',
     duration: 30
   });
