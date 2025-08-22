@@ -157,7 +157,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
           description: existingAppointment.description || '',
           clientInfo: existingAppointment.clientInfo || existingAppointment.customerInfo || '',
           price: existingAppointment.price || '',
-          paymentType: existingAppointment.paymentType || '',
+          paymentType: existingAppointment.paymentType || 'cash',
           durationSelect: '30',
           duration: duration
         });
