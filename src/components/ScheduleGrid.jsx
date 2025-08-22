@@ -463,7 +463,20 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                               return (
                                 <Paper draggable onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)} onDragEnd={handleDragEnd}
                                   onTouchStart={ev=>handleDragStart(ev,e.id,slot,startCell.appt)}
-                                  radius="sm" p="2px 4px" className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`} style={{ border:'none', cursor:'grab', minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 4, width:'100%', ...sharedStyle, ...statusStyle }}>
+                                  radius="sm" p="2px 4px" className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`}
+                                  style={{
+                                    border:'none',
+                                    cursor:'grab',
+                                    minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    width:'100%',
+                                    WebkitUserSelect: dragState.dragging ? 'none' : undefined,
+                                    userSelect: dragState.dragging ? 'none' : undefined,
+                                    ...sharedStyle,
+                                    ...statusStyle
+                                  }}>
                                   {(() => { 
                                     const fullName = (startCell.appt.client || '').trim();
                                     const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
