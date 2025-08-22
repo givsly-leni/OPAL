@@ -450,6 +450,9 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                             verticalAlign: 'middle',
                             boxShadow: dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && hoverTarget.allowed ? '0 0 0 3px #d6336c88' : undefined,
                             zIndex: dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && hoverTarget.allowed ? 10 : undefined,
+                            WebkitUserSelect: dragState.dragging ? 'none' : undefined,
+                            userSelect: dragState.dragging ? 'none' : undefined,
+                            touchAction: dragState.dragging ? 'none' : undefined,
                             ...sharedCellStyle
                           }}
                           onDragOver={(ev)=>handleDragOver(ev,e.id,slot)}
@@ -488,6 +491,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                     width:'100%',
                                     WebkitUserSelect: dragState.dragging ? 'none' : undefined,
                                     userSelect: dragState.dragging ? 'none' : undefined,
+                                    touchAction: dragState.dragging ? 'none' : undefined,
                                     ...sharedStyle,
                                     ...statusStyle
                                   }}>
