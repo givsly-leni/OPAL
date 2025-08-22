@@ -104,6 +104,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   const [dragState, setDragState] = useState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
   const [isTouchDragging, setIsTouchDragging] = useState(false);
   const touchDragData = useRef({});
+  const touchDragStarted = useRef(false);
   const [hoverTarget, setHoverTarget] = useState({ employee:null, slot:null, allowed:false });
   const navigate = useNavigate();
   const dateKey = dayjs(date).format('YYYY-MM-DD');
@@ -289,17 +290,39 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   };
 
   // Touch drag-and-drop for iOS/tablet
+  const TOUCH_DRAG_THRESHOLD = 8; // px
   const handleTouchStart = (e, employeeId, slot, appt) => {
-    setIsTouchDragging(true);
-    setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
-    touchDragData.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, employeeId, slot, appt };
+    touchDragStarted.current = false;
+    touchDragData.current = {
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      employeeId,
+      slot,
+      appt
+    };
   };
   const handleTouchMove = (e) => {
-    // Prevent scrolling while dragging
-    if (isTouchDragging) e.preventDefault();
+    const { startX, startY, employeeId, slot, appt } = touchDragData.current;
+    const moveX = e.touches[0].clientX;
+    const moveY = e.touches[0].clientY;
+    const dx = Math.abs(moveX - startX);
+    const dy = Math.abs(moveY - startY);
+    if (!touchDragStarted.current && (dx > TOUCH_DRAG_THRESHOLD || dy > TOUCH_DRAG_THRESHOLD)) {
+      setIsTouchDragging(true);
+      setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
+      touchDragStarted.current = true;
+    }
+    if (touchDragStarted.current) {
+      e.preventDefault(); // Prevent scrolling while dragging
+    }
   };
   const handleTouchEnd = (e) => {
-    if (!isTouchDragging) return;
+    if (!touchDragStarted.current) {
+      // Treat as tap, not drag
+      setIsTouchDragging(false);
+      touchDragData.current = {};
+      return;
+    }
     // Find the element under the touch end point
     const touch = e.changedTouches[0];
     const elem = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -315,6 +338,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
       }
     }
     handleDragEnd();
+    touchDragStarted.current = false;
   };
   const handleDragOver = (e, employeeId, slot) => {
     if(!dragState.dragging) return;
