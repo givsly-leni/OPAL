@@ -295,53 +295,88 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     touchDragData.current = {};
   };
 
-  // --- iOS/touch drag-and-drop (independent of HTML5 drag) ---
   const handleTouchStart = (e, employeeId, slot, appt) => {
-    e.preventDefault();
+  // Do NOT preventDefault here — allow taps to become clicks.
+  const t = e.touches[0];
+  touchDragData.current = {
+    startX: t.clientX,
+    startY: t.clientY,
+    employeeId,
+    slot,
+    appt,
+    startedDrag: false
+  };
+};
+
+const handleTouchMove = (e) => {
+  const data = touchDragData.current;
+  if (!data || data.employeeId == null) return;
+
+  const t = e.touches[0];
+  const dx = Math.abs(t.clientX - data.startX);
+  const dy = Math.abs(t.clientY - data.startY);
+  const dist = Math.max(dx, dy);
+
+  // Crossed the threshold? Enter drag mode now.
+  if (!data.startedDrag && dist > DRAG_THRESHOLD) {
+    data.startedDrag = true;
     setIsTouchDragging(true);
-    setTouchDragUI(true); // disable selection & tap highlight globally during drag
-    setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
-    touchDragData.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, employeeId, slot, appt };
-  };
+    setTouchDragUI(true);
+    setDragState({ dragging: true, sourceEmployee: data.employeeId, sourceSlot: data.slot, appt: data.appt });
+  }
 
-  const handleTouchMove = (e) => {
-    if (!isTouchDragging) return;
-    e.preventDefault();
+  if (!data.startedDrag) {
+    // Still a tap — don't block scrolling/clicks yet.
+    return;
+  }
 
-    const touch = e.touches[0];
-    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (elem) {
-      let target = elem;
-      while (target && (!target.dataset || (!target.dataset.emp && !target.dataset.slot))) {
-        target = target.parentElement;
-      }
-      if (target && target.dataset && target.dataset.emp && target.dataset.slot) {
-        const employeeId = target.dataset.emp;
-        const slot = target.dataset.slot;
-        const allowed = canPlaceAppointment(dragState.appt, employeeId, slot);
-        setHoverTarget(prev => (prev.employee===employeeId && prev.slot===slot && prev.allowed===allowed) ? prev : { employee:employeeId, slot, allowed });
-      } else if (hoverTarget.employee || hoverTarget.slot) {
-        setHoverTarget({ employee:null, slot:null, allowed:false });
-      }
+  // In drag mode: block scroll & update hover/preview
+  e.preventDefault();
+  const elem = document.elementFromPoint(t.clientX, t.clientY);
+  if (elem) {
+    let target = elem;
+    while (target && (!target.dataset || (!target.dataset.emp && !target.dataset.slot))) {
+      target = target.parentElement;
     }
-  };
-
-  const handleTouchEnd = (e) => {
-    if (!isTouchDragging) return;
-    e.preventDefault();
-    const touch = e.changedTouches[0];
-    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (elem) {
-      let target = elem;
-      while (target && (!target.dataset || (!target.dataset.emp && !target.dataset.slot))) {
-        target = target.parentElement;
-      }
-      if (target && target.dataset && target.dataset.emp && target.dataset.slot) {
-        handleDrop({ preventDefault:()=>{} }, target.dataset.emp, target.dataset.slot);
-      }
+    if (target && target.dataset && target.dataset.emp && target.dataset.slot) {
+      const employeeId = target.dataset.emp;
+      const slot = target.dataset.slot;
+      const allowed = canPlaceAppointment(touchDragData.current.appt, employeeId, slot);
+      setHoverTarget(prev =>
+        (prev.employee===employeeId && prev.slot===slot && prev.allowed===allowed)
+          ? prev
+          : { employee:employeeId, slot, allowed }
+      );
+    } else {
+      setHoverTarget({ employee:null, slot:null, allowed:false });
     }
-    handleDragEnd();
-  };
+  }
+};
+
+const handleTouchEnd = (e) => {
+  const data = touchDragData.current;
+  if (!data || !data.startedDrag) {
+    // It was a tap — let the click handlers (Badge / ActionIcon) fire normally.
+    touchDragData.current = { startX: 0, startY: 0, employeeId: null, slot: null, appt: null, startedDrag: false };
+    return;
+  }
+
+  // Was dragging — complete the drop.
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  const elem = document.elementFromPoint(t.clientX, t.clientY);
+  if (elem) {
+    let target = elem;
+    while (target && (!target.dataset || (!target.dataset.emp && !target.dataset.slot))) {
+      target = target.parentElement;
+    }
+    if (target && target.dataset && target.dataset.emp && target.dataset.slot) {
+      handleDrop({ preventDefault:()=>{} }, target.dataset.emp, target.dataset.slot);
+    }
+  }
+  handleDragEnd();
+};
+
 
   const handleDragOver = (e, employeeId, slot) => {
     if(!dragState.dragging || isTouchDragging) return; // HTML5 path only
