@@ -6,6 +6,29 @@ import { useNavigate } from 'react-router-dom';
 import { deleteAppointment, saveAppointment } from '../services/appointmentService';
 import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
+import { Modal } from '@mantine/core';
+
+// --- NEW: iOS detection and helper to toggle global anti-select/scroll styles during touch DnD ---
+const IS_IOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+function setTouchDragUI(active) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const body = document.body;
+  if (active) {
+    root.style.setProperty('touch-action', 'none');
+    root.style.setProperty('-webkit-user-select', 'none');
+    body.style.setProperty('user-select', 'none');
+    body.style.setProperty('-webkit-user-select', 'none');
+    body.style.setProperty('-webkit-tap-highlight-color', 'rgba(0,0,0,0)');
+  } else {
+    root.style.removeProperty('touch-action');
+    root.style.removeProperty('-webkit-user-select');
+    body.style.removeProperty('user-select');
+    body.style.removeProperty('-webkit-user-select');
+    body.style.removeProperty('-webkit-tap-highlight-color');
+  }
+}
 
 // Employees (columns)
 const EMPLOYEES = [
@@ -15,14 +38,12 @@ const EMPLOYEES = [
 ];
 
 // Per-employee working hours (weekday -> array of [start,end] ranges, 24h format)
-// 0=Sunday ... 6=Saturday
 const EMPLOYEE_SCHEDULE = {
   aggelikh: {
-    2: [['10:00','16:00'], ['19:00','21:00']], // Tuesday
-    3: [['13:00','21:00']], // Wednesday
-    4: [['10:00','16:00'], ['19:00','21:00']], // Thursday
-    5: [['13:00','21:00']], // Friday
-    // 6: day off (Saturday)
+    2: [['10:00','16:00'], ['19:00','21:00']],
+    3: [['13:00','21:00']],
+    4: [['10:00','16:00'], ['19:00','21:00']],
+    5: [['13:00','21:00']],
   },
   emmanouela: {
     2: [['13:00','21:00']],
@@ -49,8 +70,7 @@ const EMPLOYEE_COLORS = {
 
 const EMPLOYEE_CELL_MIN_WIDTH = 'clamp(140px, 18vw, 200px)';
 
-// Business hours per weekday (0=Sunday ... 6=Saturday). null means closed.
-// Sunday (0) closed, Monday (1) closed, Tue/Wed/Thu 10-21, Fri 9-21, Sat 9-15
+// Business hours (0=Sun ... 6=Sat)
 export const BUSINESS_HOURS = {
   0: null,
   1: null,
@@ -61,11 +81,9 @@ export const BUSINESS_HOURS = {
   6: { start: '09:00', end: '15:00' }
 };
 
-// Revert to 15-minute base grid; will handle exceptional durations specially later.
 const SLOT_MINUTES = 15;
 const SLOT_PIXEL_HEIGHT = 6;
 
-// Generate base 15-min slot boundaries for the day (without dynamic subdivision)
 function generateBaseSlotsForDate(date){
   const dayNum = dayjs(date).day();
   const config = BUSINESS_HOURS[dayNum];
@@ -79,8 +97,6 @@ function generateBaseSlotsForDate(date){
   }
   return slots;
 }
-
-import { Modal } from '@mantine/core';
 
 export function ScheduleGrid({ date, appointments, setAppointments }) {
   const [confirmState, setConfirmState] = useState({ open:false, employeeId:null, slot:null, client:'', apptId:null });
@@ -101,20 +117,29 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     setCalcResult({ total, cash, card, count });
     setCalcOpen(true);
   }
-  const [dragState, setDragState] = useState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
+
+  const [dragState, setDragState] = useState({
+    dragging:false,
+    sourceEmployee:null,
+    sourceSlot:null,
+    appt:null
+  });
+
   const [isTouchDragging, setIsTouchDragging] = useState(false);
   const touchDragData = useRef({});
   const [hoverTarget, setHoverTarget] = useState({ employee:null, slot:null, allowed:false });
+
   const navigate = useNavigate();
   const dateKey = dayjs(date).format('YYYY-MM-DD');
   const baseSlots = generateBaseSlotsForDate(date);
+
   const dayAppointments = useMemo(()=> {
     return (appointments[dateKey] || [])
       .map(a => ({ ...a, start: a.time }))
       .sort((a,b) => a.start.localeCompare(b.start));
   }, [appointments, dateKey]);
 
-  // Phones that appear on more than one employee (shared customer) for the day
+  // Phones that appear more than once (shared customers) for the day
   const sharedPhones = useMemo(()=>{
     const map = {};
     (dayAppointments||[]).forEach(a=>{
@@ -126,17 +151,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return new Set(Object.entries(map).filter(([,emps])=>emps.size>1).map(([p])=>p));
   }, [dayAppointments]);
 
-  // Distinct solid colors for each shared phone (duplicates). Repeats after palette end.
-  const SHARED_PHONE_COLORS = [
-    '#ff9800', // orange
-    '#2196f3', // blue
-    '#4caf50', // green
-    '#9c27b0', // purple
-    '#ff5722', // deep orange
-    '#3f51b5', // indigo
-    '#009688', // teal
-    '#e91e63'  // pink
-  ];
+  const SHARED_PHONE_COLORS = ['#ff9800','#2196f3','#4caf50','#9c27b0','#ff5722','#3f51b5','#009688','#e91e63'];
   const sharedColorCache = useMemo(()=>{
     const cache = {};
     let idx = 0;
@@ -147,7 +162,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return cache;
   }, [sharedPhones]);
 
-  // Build dynamic slots: base 15' boundaries plus any appointment end times that fall between them (for exact durations like 40').
+  // Dynamic time boundaries
   const slots = useMemo(()=>{
     const set = new Set(baseSlots);
     dayAppointments.forEach(appt => {
@@ -155,16 +170,12 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
       const durationMin = parseInt(appt.duration || 30, 10);
       const end = start.add(durationMin, 'minute');
       if (durationMin % SLOT_MINUTES !== 0) {
-        // inject end boundary if within business hours and not already present
-        const endStr = end.format('HH:mm');
-        set.add(endStr);
+        set.add(end.format('HH:mm'));
       }
     });
-    // Sort times lexicographically (HH:mm fixed width) into array
     return Array.from(set).sort();
   }, [baseSlots, dayAppointments, dateKey]);
 
-  // Precompute next-slot map for variable interval minutes
   const slotIntervals = useMemo(()=>{
     const intervals = {};
     for(let i=0;i<slots.length;i++){
@@ -174,13 +185,12 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
         const m = dayjs(`${dateKey}T${next}`).diff(dayjs(`${dateKey}T${cur}`),'minute');
         intervals[cur] = m;
       } else {
-        intervals[cur] = SLOT_MINUTES; // default for last row
+        intervals[cur] = SLOT_MINUTES;
       }
     }
     return intervals;
   }, [slots, dateKey]);
 
-  // Coverage map now respects dynamic boundaries; partial final segments produce additional slot entries.
   const coverageMap = useMemo(()=>{
     const map = {};
     EMPLOYEES.forEach(e => { map[e.id] = {}; });
@@ -188,14 +198,11 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
       const start = dayjs(`${dateKey}T${appt.time}`);
       const durationMin = parseInt(appt.duration || 30, 10);
       const end = start.add(durationMin, 'minute');
-      // Determine which slot starts fall within [start, end)
       const coveredSlots = slots.filter(s => {
         const sm = dayjs(`${dateKey}T${s}`);
         return (sm.isSame(start) || sm.isAfter(start)) && sm.isBefore(end);
       });
-      if(coveredSlots.length===0){
-        return;
-      }
+      if(coveredSlots.length===0) return;
       coveredSlots.forEach((s,i)=>{
         map[appt.employee][s] = { appt, isStart: i===0, span: coveredSlots.length };
       });
@@ -213,38 +220,35 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     const dayNum = dayjs(dateObj).day();
     const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum];
     if(!ranges) return false;
-    // slot = 'HH:mm' – simple string compare works since fixed width
     return ranges.some(([start,end]) => slot >= start && slot < end);
   }
 
-    function getMaxDurationForSlot(employeeId, slot, excludeId){
-      const dayNum = dayjs(date).day();
-      const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum] || [];
-      const startMoment = dayjs(`${dateKey}T${slot}`);
-      // find working range containing slot
-      let containing = null;
-      for(const [rs,re] of ranges){
-        if(slot >= rs && slot < re){ containing = [rs,re]; break; }
-      }
-      if(!containing) return 0;
-      const rangeEnd = dayjs(`${dateKey}T${containing[1]}`);
-      // find next appointment start (could be non-15 if previously added)
-      let nextStart = null;
-      const empAppts = (appointments[dateKey]||[])
-        .filter(a=>a.employee===employeeId && (!excludeId || a.id !== excludeId))
-        .sort((a,b)=>a.time.localeCompare(b.time));
-      for(const a of empAppts){
-        if(a.time > slot){ nextStart = dayjs(`${dateKey}T${a.time}`); break; }
-      }
-      const hardEnd = nextStart && nextStart.isBefore(rangeEnd) ? nextStart : rangeEnd;
-      let minutes = hardEnd.diff(startMoment,'minute');
-      if(minutes < 0) minutes = 0;
-      return minutes; // no rounding; allow arbitrary minute durations
+  function getMaxDurationForSlot(employeeId, slot, excludeId){
+    const dayNum = dayjs(date).day();
+    const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum] || [];
+    const startMoment = dayjs(`${dateKey}T${slot}`);
+    let containing = null;
+    for(const [rs,re] of ranges){
+      if(slot >= rs && slot < re){ containing = [rs,re]; break; }
     }
+    if(!containing) return 0;
+    const rangeEnd = dayjs(`${dateKey}T${containing[1]}`);
+    let nextStart = null;
+    const empAppts = (appointments[dateKey]||[])
+      .filter(a=>a.employee===employeeId && (!excludeId || a.id !== excludeId))
+      .sort((a,b)=>a.time.localeCompare(b.time));
+    for(const a of empAppts){
+      if(a.time > slot){ nextStart = dayjs(`${dateKey}T${a.time}`); break; }
+    }
+    const hardEnd = nextStart && nextStart.isBefore(rangeEnd) ? nextStart : rangeEnd;
+    let minutes = hardEnd.diff(startMoment,'minute');
+    if(minutes < 0) minutes = 0;
+    return minutes;
+  }
 
-    function openNew(employeeId, slot) {
-      navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=new`);
-    }
+  function openNew(employeeId, slot) {
+    navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=new`);
+  }
   function openEdit(employeeId, slot) {
     navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=edit`);
   }
@@ -259,10 +263,8 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     const durationMin = parseInt(appt.duration || 30, 10);
     const startMoment = dayjs(`${dateKey}T${targetSlot}`);
     const endMoment = startMoment.add(durationMin,'minute');
-    // Ensure fits in free window
     const maxFree = getMaxDurationForSlot(targetEmployee, targetSlot, appt.id);
     if(maxFree < durationMin) return false;
-    // Overlap check: any covered slot whose start < end and >= start belonging to other appt
     const overlapping = slots.some(s => {
       const sm = dayjs(`${dateKey}T${s}`);
       if(sm.isSame(startMoment) || (sm.isAfter(startMoment) && sm.isBefore(endMoment))){
@@ -275,65 +277,90 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return true;
   }, [coverageMap, date, dateKey, slots]);
 
+  // --- Mouse/trackpad/Android HTML5 drag ---
   const handleDragStart = (e, employeeId, slot, appt) => {
     if (e && e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'move';
     }
     setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
   };
+
   const handleDragEnd = () => {
     setDragState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
     setHoverTarget({ employee:null, slot:null, allowed:false });
-    setIsTouchDragging(false);
+    if (isTouchDragging) {
+      setIsTouchDragging(false);
+      setTouchDragUI(false); // restore selection/scrolling on iOS
+    }
     touchDragData.current = {};
   };
 
-  // Touch drag-and-drop for iOS/tablet
+  // --- iOS/touch drag-and-drop (independent of HTML5 drag) ---
   const handleTouchStart = (e, employeeId, slot, appt) => {
+    e.preventDefault();
     setIsTouchDragging(true);
+    setTouchDragUI(true); // disable selection & tap highlight globally during drag
     setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
     touchDragData.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, employeeId, slot, appt };
   };
+
   const handleTouchMove = (e) => {
-    // Prevent scrolling while dragging
-    if (isTouchDragging) e.preventDefault();
-  };
-  const handleTouchEnd = (e) => {
     if (!isTouchDragging) return;
-    // Find the element under the touch end point
-    const touch = e.changedTouches[0];
+    e.preventDefault();
+
+    const touch = e.touches[0];
     const elem = document.elementFromPoint(touch.clientX, touch.clientY);
     if (elem) {
-      // Look for a data-emp and data-slot attribute on the drop target
       let target = elem;
       while (target && (!target.dataset || (!target.dataset.emp && !target.dataset.slot))) {
         target = target.parentElement;
       }
       if (target && target.dataset && target.dataset.emp && target.dataset.slot) {
-        // Simulate drop
+        const employeeId = target.dataset.emp;
+        const slot = target.dataset.slot;
+        const allowed = canPlaceAppointment(dragState.appt, employeeId, slot);
+        setHoverTarget(prev => (prev.employee===employeeId && prev.slot===slot && prev.allowed===allowed) ? prev : { employee:employeeId, slot, allowed });
+      } else if (hoverTarget.employee || hoverTarget.slot) {
+        setHoverTarget({ employee:null, slot:null, allowed:false });
+      }
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!isTouchDragging) return;
+    e.preventDefault();
+    const touch = e.changedTouches[0];
+    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (elem) {
+      let target = elem;
+      while (target && (!target.dataset || (!target.dataset.emp && !target.dataset.slot))) {
+        target = target.parentElement;
+      }
+      if (target && target.dataset && target.dataset.emp && target.dataset.slot) {
         handleDrop({ preventDefault:()=>{} }, target.dataset.emp, target.dataset.slot);
       }
     }
     handleDragEnd();
   };
+
   const handleDragOver = (e, employeeId, slot) => {
-    if(!dragState.dragging) return;
+    if(!dragState.dragging || isTouchDragging) return; // HTML5 path only
     e.preventDefault();
     const allowed = canPlaceAppointment(dragState.appt, employeeId, slot);
     setHoverTarget(prev => (prev.employee===employeeId && prev.slot===slot && prev.allowed===allowed) ? prev : { employee:employeeId, slot, allowed });
-    e.dataTransfer.dropEffect = allowed ? 'move' : 'none';
+    if (e.dataTransfer) e.dataTransfer.dropEffect = allowed ? 'move' : 'none';
   };
+
   const handleDrop = async (e, employeeId, slot) => {
     if(!dragState.dragging) return;
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const appt = dragState.appt;
     const allowed = canPlaceAppointment(appt, employeeId, slot);
     if(!allowed) { handleDragEnd(); return; }
     try {
-      // Save updated appointment (keep same id, change employee/time)
-  const updated = { ...appt, employee: employeeId, time: slot, date: dateKey };
-  await saveAppointment(updated);
-  backupAppointment('save', updated);
+      const updated = { ...appt, employee: employeeId, time: slot, date: dateKey };
+      await saveAppointment(updated);
+      backupAppointment('save', updated);
     } catch(err){ console.error('Drag move save error', err); }
     handleDragEnd();
   };
@@ -341,7 +368,6 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   async function handleConfirmDelete(){
     if(confirmState.open && confirmState.apptId){
       try {
-        // attempt to capture the appointment data before deletion
         const appt = (appointments[dayjs(date).format('YYYY-MM-DD')]||[]).find(a=>a.id===confirmState.apptId);
         if(appt) backupAppointment('delete', appt);
         await deleteAppointment(confirmState.apptId);
@@ -351,15 +377,14 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   }
   function handleCancelDelete(){ setConfirmState({ open:false, employeeId:null, slot:null, client:'', apptId:null }); }
 
-  // Cycle appointment status: unconfirmed -> confirmed -> no-answer -> unconfirmed
   const cycleStatus = async (appt) => {
     if(!appt) return;
     const current = appt.status || 'unconfirmed';
     const next = current === 'unconfirmed' ? 'confirmed' : current === 'confirmed' ? 'no-answer' : 'unconfirmed';
     try {
-  const updated = { ...appt, status: next };
-  await saveAppointment(updated);
-  backupAppointment('save', updated);
+      const updated = { ...appt, status: next };
+      await saveAppointment(updated);
+      backupAppointment('save', updated);
     } catch(err){ console.error('Status toggle error', err); }
   };
 
@@ -372,18 +397,58 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   }
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '0 8px', boxSizing: 'border-box' }}>
+    <div
+      style={{
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '16px',
+        padding: '0 8px',
+        boxSizing: 'border-box',
+        WebkitTapHighlightColor: 'transparent',
+        touchAction: isTouchDragging ? 'none' : 'manipulation',
+        userSelect: isTouchDragging ? 'none' : 'auto'
+      }}
+    >
       <Button color="pink" variant="light" onClick={handleCalculateDay} style={{ marginTop: '-65px' }}>
         Υπολογισμός Ημέρας
       </Button>
-      <Paper withBorder shadow="md" radius="xl" p="lg" style={{ width: '100%', maxWidth: '1200px', background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(214,51,108,0.25)', overflowX: 'auto', position:'relative' }}>
+
+      <Paper
+        withBorder
+        shadow="md"
+        radius="xl"
+        p="lg"
+        style={{
+          width: '100%',
+          maxWidth: '1200px',
+          background: 'rgba(255,255,255,0.95)',
+          border: '1px solid rgba(214,51,108,0.25)',
+          overflowX: 'auto',
+          position:'relative',
+          userSelect: isTouchDragging ? 'none' : 'auto',
+          WebkitUserSelect: isTouchDragging ? 'none' : 'auto'
+        }}
+      >
         <div style={{ flex: 1, minWidth: '320px', width: '100%' }}>
           <Table stickyHeader horizontalSpacing="xs" verticalSpacing={6} fontSize="sm" className={styles.tableRoot} style={{ minWidth: 'fit-content' }}>
             <Table.Thead>
               <Table.Tr className={styles.tableHeadRow}>
                 <Table.Th className={styles.hourHeader}>Ώρα</Table.Th>
                 {EMPLOYEES.map((e,idx)=>(
-                  <Table.Th key={e.id} className={styles.empHeader} style={{ borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)', minWidth: EMPLOYEE_CELL_MIN_WIDTH, fontSize: 'clamp(10px, 2vw, 12px)', padding: 'clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px)' }}>{e.name}</Table.Th>
+                  <Table.Th
+                    key={e.id}
+                    className={styles.empHeader}
+                    style={{
+                      borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
+                      minWidth: EMPLOYEE_CELL_MIN_WIDTH,
+                      fontSize: 'clamp(10px, 2vw, 12px)',
+                      padding: 'clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px)'
+                    }}
+                  >
+                    {e.name}
+                  </Table.Th>
                 ))}
               </Table.Tr>
             </Table.Thead>
@@ -393,7 +458,6 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                 const isToday = now.isSame(date,'day');
                 const isCurrentSlot = isToday && now.format('HH:mm')===slot;
                 const minutePart = slot.slice(3,5);
-                // Show label for every slot (including dynamically inserted boundaries)
                 const displayLabel = slot;
                 const intervalMin = slotIntervals[slot] || SLOT_MINUTES;
                 const isHourStart = minutePart === '00';
@@ -408,10 +472,10 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                 return (
                   <Table.Tr key={slot} className={rowClass} style={{ height: `${intervalMin / SLOT_MINUTES * 16}px` }}>
                     <Table.Td className={styles.timeCell} style={{ fontSize: 'clamp(11px, 2vw, 13px)', fontWeight: 600, opacity:0.95, padding: '0 3px', lineHeight: 1.15, width: 'clamp(50px, 7vw, 70px)' }}>{displayLabel}</Table.Td>
-                    {EMPLOYEES.map((e,idx)=>{ 
+                    {EMPLOYEES.map((e,idx)=>{
                       const startCell = getAppointmentStartCell(e.id, slot);
                       const covered = slotCovered(e.id, slot);
-                      const color=EMPLOYEE_COLORS[e.id]||'gray'; 
+                      const color=EMPLOYEE_COLORS[e.id]||'gray';
                       if (covered && !startCell) return null;
                       const working = isEmployeeWorking(e.id, date, slot);
                       let isShared = false; let sharedColor = null;
@@ -422,24 +486,23 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                       }
                       const apptCellClass = startCell ? styles.apptCellActive : '';
                       const sharedCellStyle = startCell && isShared ? { background: sharedColor } : {};
-            return (
-                        <Table.Td 
+                      return (
+                        <Table.Td
                           key={e.id}
-                          className={
-                            [
-                              styles.empCell,
-                              !startCell && working ? styles.workingSlot : '',
-                              apptCellClass,
-                              dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && !isTouchDragging ? (hoverTarget.allowed? styles.dropTargetAllowed : styles.dropTargetBlocked) : '',
-                              isTouchDragging ? styles.noHighlight : ''
-                            ].join(' ')
-                          }
+                          className={[
+                            styles.empCell,
+                            !startCell && working ? styles.workingSlot : '',
+                            apptCellClass,
+                            dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && !isTouchDragging ? (hoverTarget.allowed? styles.dropTargetAllowed : styles.dropTargetBlocked) : '',
+                            isTouchDragging ? styles.noHighlight : ''
+                          ].join(' ')}
                           style={{
                             borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
                             minWidth: EMPLOYEE_CELL_MIN_WIDTH,
                             padding: '0 2px',
                             verticalAlign: 'middle',
-                            ...sharedCellStyle
+                            ...sharedCellStyle,
+                            userSelect: isTouchDragging ? 'none' : 'auto'
                           }}
                           onDragOver={(ev)=>handleDragOver(ev,e.id,slot)}
                           onDrop={(ev)=>handleDrop(ev,e.id,slot)}
@@ -453,26 +516,38 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                 background: sharedColor,
                                 color:'#fff'
                               } : {};
-                              // Status-based color tweak: make confirmed appointments green.
                               const status = startCell.appt.status || 'unconfirmed';
                               let statusStyle = {};
                               const isConfirmed = status === 'confirmed';
-                              // Only add outline for confirmed shared appointments; do NOT override background for single appointments.
                               if(isConfirmed && isShared) {
                                 statusStyle = { boxShadow: '0 3px 6px -2px rgba(0,0,0,0.45)' };
                               }
                               return (
                                 <Paper
-                                  draggable
-                                  onDragStart={(ev)=>handleDragStart(ev,e.id,slot,startCell.appt)}
-                                  onDragEnd={handleDragEnd}
-                                  onTouchStart={ev=>handleTouchStart(ev,e.id,slot,startCell.appt)}
+                                  draggable={!IS_IOS && !isTouchDragging}
+                                  onDragStart={(ev)=>!IS_IOS && handleDragStart(ev,e.id,slot,startCell.appt)}
+                                  onDragEnd={!IS_IOS ? handleDragEnd : undefined}
+                                  onTouchStart={(ev)=>handleTouchStart(ev,e.id,slot,startCell.appt)}
                                   onTouchMove={handleTouchMove}
                                   onTouchEnd={handleTouchEnd}
                                   radius="sm"
                                   p="2px 4px"
                                   className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`}
-                                  style={{ border:'none', cursor:'grab', minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`, display: 'flex', alignItems: 'center', gap: 4, width:'100%', ...sharedStyle, ...statusStyle }}
+                                  style={{
+                                    border:'none',
+                                    cursor: isTouchDragging ? 'grabbing' : 'grab',
+                                    minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    width:'100%',
+                                    ...sharedStyle,
+                                    ...statusStyle,
+                                    WebkitTapHighlightColor: 'transparent',
+                                    userSelect: 'none',
+                                    WebkitUserSelect: 'none',
+                                    touchAction: isTouchDragging ? 'none' : 'manipulation'
+                                  }}
                                 >
                                   {(() => { 
                                     const fullName = (startCell.appt.client || '').trim();
@@ -487,7 +562,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                         className={styles.apptBadge}
                                         onClick={()=>openEdit(e.id,slot)}
                                         title={`${fullName}${firstDescWord? ' • '+firstDescWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
-                                        style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.18)', border:'none', color:'#fff' }}
+                                        style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.18)', border:'none', color:'#fff', userSelect:'none' }}
                                       >
                                         {clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}
                                       </Badge>
@@ -552,13 +627,33 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                   justifyContent:'center',
                                   padding:0,
                                   border:'1px dashed rgba(214,51,108,0.4)',
-                                  background:'rgba(34,197,94,0.08)'
+                                  background:'rgba(34,197,94,0.08)',
+                                  WebkitTapHighlightColor: 'transparent',
+                                  userSelect:'none',
+                                  touchAction: isTouchDragging ? 'none' : 'manipulation'
                                 }}
+                                data-emp={e.id}
+                                data-slot={slot}
                               >
                                 <IconPlus size={10}/>
                               </ActionIcon>
                             ) : (
-                              <div style={{ width:'100%', height:'14px', minHeight:'14px', opacity:0.25, background:'repeating-linear-gradient(45deg, #f5f0f3, #f5f0f3 4px, #ece2e7 4px, #ece2e7 8px)', border:'1px solid rgba(214,51,108,0.15)', borderRadius:4 }} title="Εκτός ωραρίου" />
+                              <div
+                                style={{
+                                  width:'100%',
+                                  height:'14px',
+                                  minHeight:'14px',
+                                  opacity:0.25,
+                                  background:'repeating-linear-gradient(45deg, #f5f0f3, #f5f0f3 4px, #ece2e7 4px, #ece2e7 8px)',
+                                  border:'1px solid rgba(214,51,108,0.15)',
+                                  borderRadius:4,
+                                  WebkitTapHighlightColor: 'transparent',
+                                  userSelect:'none'
+                                }}
+                                title="Εκτός ωραρίου"
+                                data-emp={e.id}
+                                data-slot={slot}
+                              />
                             )
                           )}
                         </Table.Td>
@@ -570,6 +665,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
             </Table.Tbody>
           </Table>
         </div>
+
         {confirmState.open && (
           <>
             <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.15)', backdropFilter:'blur(2px)', zIndex:2999 }} onClick={handleCancelDelete} />
@@ -601,7 +697,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
           <Button mt="md" color="pink" variant="light" onClick={() => setCalcOpen(false)}>Κλείσιμο</Button>
         </Stack>
       </div>
-    }
+      }
     </div>
   );
 }
