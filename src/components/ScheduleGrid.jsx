@@ -16,12 +16,16 @@ function setTouchDragUI(active) {
   const root = document.documentElement;
   const body = document.body;
   if (active) {
+    // Lock page scroll hard
+    body.style.setProperty('overflow', 'hidden');
+    // Stop rubber-band and selection highlights
     root.style.setProperty('touch-action', 'none');
     root.style.setProperty('-webkit-user-select', 'none');
     body.style.setProperty('user-select', 'none');
     body.style.setProperty('-webkit-user-select', 'none');
     body.style.setProperty('-webkit-tap-highlight-color', 'rgba(0,0,0,0)');
   } else {
+    body.style.removeProperty('overflow');
     root.style.removeProperty('touch-action');
     root.style.removeProperty('-webkit-user-select');
     body.style.removeProperty('user-select');
@@ -29,6 +33,7 @@ function setTouchDragUI(active) {
     body.style.removeProperty('-webkit-tap-highlight-color');
   }
 }
+
 
 // Employees (columns)
 const EMPLOYEES = [
@@ -298,16 +303,24 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   // --- iOS/touch drag-and-drop (independent of HTML5 drag) ---
   const handleTouchStart = (e, employeeId, slot, appt) => {
     e.preventDefault();
+    e.stopPropagation();  
     setIsTouchDragging(true);
     setTouchDragUI(true); // disable selection & tap highlight globally during drag
     setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
     touchDragData.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, employeeId, slot, appt };
   };
+  // OPTIONAL but recommended: treat cancel as end
+  const handleTouchCancel = (e) => {
+    if (!isTouchDragging) return;
+    e.preventDefault();
+    e.stopPropagation();
+    handleDragEnd();
+  };
 
   const handleTouchMove = (e) => {
     if (!isTouchDragging) return;
     e.preventDefault();
-
+    e.stopPropagation();  
     const touch = e.touches[0];
     const elem = document.elementFromPoint(touch.clientX, touch.clientY);
     if (elem) {
@@ -329,6 +342,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   const handleTouchEnd = (e) => {
     if (!isTouchDragging) return;
     e.preventDefault();
+    e.stopPropagation();  
     const touch = e.changedTouches[0];
     const elem = document.elementFromPoint(touch.clientX, touch.clientY);
     if (elem) {
@@ -698,6 +712,24 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
         </Stack>
       </div>
       }
+
+      {isTouchDragging && (
+      <div
+        // Captures all touch events above everything else
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          background: 'transparent',
+          touchAction: 'none',       // extra guard
+          WebkitTapHighlightColor: 'transparent'
+        }}
+      />
+    )}
+
     </div>
   );
 }
