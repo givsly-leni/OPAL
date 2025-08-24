@@ -403,9 +403,16 @@ const handleTouchEnd = (e) => {
   async function handleConfirmDelete(){
     if(confirmState.open && confirmState.apptId){
       try {
-        const appt = (appointments[dayjs(date).format('YYYY-MM-DD')]||[]).find(a=>a.id===confirmState.apptId);
+        const dateKey = dayjs(date).format('YYYY-MM-DD');
+        const appt = (appointments[dateKey]||[]).find(a=>a.id===confirmState.apptId);
         if(appt) backupAppointment('delete', appt);
         await deleteAppointment(confirmState.apptId);
+        // Update local state to remove the deleted appointment
+        setAppointments(prev => {
+          const updated = { ...prev };
+          updated[dateKey] = (updated[dateKey] || []).filter(a => a.id !== confirmState.apptId);
+          return updated;
+        });
       } catch(e){ console.error('Error deleting appointment', e); }
     }
     setConfirmState({ open:false, employeeId:null, slot:null, client:'', apptId:null });
