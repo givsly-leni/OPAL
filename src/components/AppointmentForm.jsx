@@ -291,15 +291,12 @@ export function AppointmentForm({ appointments, setAppointments }) {
       id: undefined,
       client: cust.name || '',
       phone: cust.phone || '',
-      description: cust.notes || '',
+      description: form.description || '',
       clientInfo: cust.clientInfo || cust.info || '',
-            price: cust.price || '',
-            paymentType: cust.paymentType || '',
-            durationSelect: '30',
-            // Clear duration when selecting an existing customer so we don't
-            // pre-fill any prior appointment duration that may be stored on
-            // the customer record.
-            duration: ''
+      price: cust.price || '',
+      paymentType: cust.paymentType || '',
+      durationSelect: '30',
+      duration: ''
           
     });
   if(cust.name){ setNameQuery(cust.name); }
