@@ -171,6 +171,14 @@ export function AppointmentForm({ appointments, setAppointments }) {
       setFormError('Το όνομα είναι υποχρεωτικό');
       return;
     }
+    if (!form.phone.trim()) {
+      setFormError('Το τηλέφωνο είναι υποχρεωτικό');
+      return;
+    }
+    if (form.duration === '' || form.duration === null || form.duration === undefined) {
+      setFormError('Η διάρκεια είναι υποχρεωτική');
+      return;
+    }
     if (scheduleError) {
       // prevent save if duration exceeds schedule
       return;
@@ -187,7 +195,12 @@ export function AppointmentForm({ appointments, setAppointments }) {
       description: form.description.trim(),
       clientInfo: form.clientInfo.trim(),
       price: form.price !== '' ? parseFloat(form.price) : null,
-      paymentType: form.paymentType || ''
+      paymentType: form.paymentType || '',
+      // Persist duration as integer when provided; store null when empty to
+      // avoid writing undefined to Firestore.
+      duration: form.duration !== '' && form.duration !== undefined && form.duration !== null
+        ? parseInt(form.duration, 10)
+        : null
     };
 
     try {
@@ -452,6 +465,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   placeholder="69XXXXXXXX"
                   value={form.phone}
                   type="tel"
+                  required
                   inputMode="numeric"
                   pattern="[0-9]*"
                   autoComplete="tel"
@@ -520,6 +534,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 onChange={(val) => {
                   setForm(f => ({ ...f, duration: val === '' ? '' : val }));
                 }}
+                required
                 min={5}
                 max={480}
                 step={5}
@@ -634,16 +649,19 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 
                 
                 
-                <Button
-                  type="submit"
-                  size="md"
-                  // Force strong visible styling (some iPhones rendered the default as near-white)
-                  variant="filled"
-                  disabled={!form.client.trim() || !!formError || !!scheduleError}
+                {(() => {
+                  const canSave = !!form.client.trim() && !!form.phone.trim() && (form.duration !== '' && form.duration != null) && !formError && !scheduleError;
+                  return (
+                    <Button
+                      type="submit"
+                      size="md"
+                      // Force strong visible styling (some iPhones rendered the default as near-white)
+                      variant="filled"
+                      disabled={!canSave}
                   style={{
-                    flex: mode === 'edit' ? 1 : 2,
-                    background: (!form.client.trim() || !!formError || !!scheduleError) ? '#fbe0eb' : '#d6336c',
-                    color: (!form.client.trim() || !!formError || !!scheduleError) ? '#c2255c' : '#ffffff',
+                        flex: mode === 'edit' ? 1 : 2,
+                        background: (!canSave) ? '#fbe0eb' : '#d6336c',
+                        color: (!canSave) ? '#c2255c' : '#ffffff',
                     border: '1px solid #d6336c',
                     fontWeight: 600,
                     letterSpacing: 0.3,
@@ -652,14 +670,16 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   }}
                   styles={{
                     root: {
-                      '&:hover': (!form.client.trim() || !!formError || !!scheduleError)
-                        ? { background: '#f7d1de' }
-                        : { background: '#c2255c' }
+                          '&:hover': (!canSave)
+                            ? { background: '#f7d1de' }
+                            : { background: '#c2255c' }
                     }
                   }}
                 >
                   {mode === 'edit' ? 'Ενημέρωση' : 'Αποθήκευση'} Ραντεβού
                 </Button>
+                  );
+                })()}
               </Group>
             </Stack>
           </form>
