@@ -4,6 +4,8 @@ import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { DatePicker } from '@mantine/dates';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
+import 'dayjs/locale/el';
+dayjs.locale('el');
 import { BUSINESS_HOURS } from './ScheduleGrid';
 
 export function DayCalendar() {
@@ -78,6 +80,7 @@ export function DayCalendar() {
             </Button>
           </div>
           <DatePicker
+            locale="el"
             value={date}
             onChange={handlePick}
             size="md"

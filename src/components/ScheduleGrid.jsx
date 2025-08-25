@@ -1,34 +1,12 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { Table, Text, Group, Badge, ActionIcon, Stack, Alert, Paper, Button } from '@mantine/core';
 import styles from './ScheduleGrid.module.css';
-import { IconPlus, IconX, IconPencil, IconCircleCheck, IconClock, IconPhoneOff, IconStar } from '@tabler/icons-react';
+import { IconPlus, IconX, IconPencil, IconCircleCheck, IconClock, IconPhoneOff, IconStar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { deleteAppointment, saveAppointment } from '../services/appointmentService';
 import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
 import { Modal } from '@mantine/core';
-
-// --- NEW: iOS detection and helper to toggle global anti-select/scroll styles during touch DnD ---
-const IS_IOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-function setTouchDragUI(active) {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  const body = document.body;
-  if (active) {
-    root.style.setProperty('touch-action', 'none');
-    root.style.setProperty('-webkit-user-select', 'none');
-    body.style.setProperty('user-select', 'none');
-    body.style.setProperty('-webkit-user-select', 'none');
-    body.style.setProperty('-webkit-tap-highlight-color', 'rgba(0,0,0,0)');
-  } else {
-    root.style.removeProperty('touch-action');
-    root.style.removeProperty('-webkit-user-select');
-    body.style.removeProperty('user-select');
-    body.style.removeProperty('-webkit-user-select');
-    body.style.removeProperty('-webkit-tap-highlight-color');
-  }
-}
 
 // Employees (columns)
 const EMPLOYEES = [
@@ -118,16 +96,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     setCalcOpen(true);
   }
 
-  const [dragState, setDragState] = useState({
-    dragging:false,
-    sourceEmployee:null,
-    sourceSlot:null,
-    appt:null
-  });
-
-  const [isTouchDragging, setIsTouchDragging] = useState(false);
-  const touchDragData = useRef({});
-  const [hoverTarget, setHoverTarget] = useState({ employee:null, slot:null, allowed:false });
+  // Drag & drop state and helpers removed — DnD disabled intentionally.
 
   const navigate = useNavigate();
   const dateKey = dayjs(date).format('YYYY-MM-DD');
@@ -277,128 +246,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return true;
   }, [coverageMap, date, dateKey, slots]);
 
-  // --- Mouse/trackpad/Android HTML5 drag ---
-  const handleDragStart = (e, employeeId, slot, appt) => {
-    if (e && e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
-    }
-    setDragState({ dragging:true, sourceEmployee:employeeId, sourceSlot:slot, appt });
-  };
-
-  const handleDragEnd = () => {
-    setDragState({ dragging:false, sourceEmployee:null, sourceSlot:null, appt:null });
-    setHoverTarget({ employee:null, slot:null, allowed:false });
-    if (isTouchDragging) {
-      setIsTouchDragging(false);
-      setTouchDragUI(false); // restore selection/scrolling on iOS
-    }
-    touchDragData.current = {};
-  };
-
-  const handleTouchStart = (e, employeeId, slot, appt) => {
-  // Do NOT preventDefault here — allow taps to become clicks.
-  const t = e.touches[0];
-  touchDragData.current = {
-    startX: t.clientX,
-    startY: t.clientY,
-    employeeId,
-    slot,
-    appt,
-    startedDrag: false
-  };
-};
-
-const handleTouchMove = (e) => {
-  const data = touchDragData.current;
-  if (!data || data.employeeId == null) return;
-
-  const t = e.touches[0];
-  const dx = Math.abs(t.clientX - data.startX);
-  const dy = Math.abs(t.clientY - data.startY);
-  const dist = Math.max(dx, dy);
-
-  // Crossed the threshold? Enter drag mode now.
-  if (!data.startedDrag && dist > DRAG_THRESHOLD) {
-    data.startedDrag = true;
-    setIsTouchDragging(true);
-    setTouchDragUI(true);
-    setDragState({ dragging: true, sourceEmployee: data.employeeId, sourceSlot: data.slot, appt: data.appt });
-  }
-
-  if (!data.startedDrag) {
-    // Still a tap — don't block scrolling/clicks yet.
-    return;
-  }
-
-  // In drag mode: block scroll & update hover/preview
-  e.preventDefault();
-  const elem = document.elementFromPoint(t.clientX, t.clientY);
-  if (elem) {
-    let target = elem;
-    while (target && (!target.dataset || (!target.dataset.emp && !target.dataset.slot))) {
-      target = target.parentElement;
-    }
-    if (target && target.dataset && target.dataset.emp && target.dataset.slot) {
-      const employeeId = target.dataset.emp;
-      const slot = target.dataset.slot;
-      const allowed = canPlaceAppointment(touchDragData.current.appt, employeeId, slot);
-      setHoverTarget(prev =>
-        (prev.employee===employeeId && prev.slot===slot && prev.allowed===allowed)
-          ? prev
-          : { employee:employeeId, slot, allowed }
-      );
-    } else {
-      setHoverTarget({ employee:null, slot:null, allowed:false });
-    }
-  }
-};
-
-const handleTouchEnd = (e) => {
-  const data = touchDragData.current;
-  if (!data || !data.startedDrag) {
-    // It was a tap — let the click handlers (Badge / ActionIcon) fire normally.
-    touchDragData.current = { startX: 0, startY: 0, employeeId: null, slot: null, appt: null, startedDrag: false };
-    return;
-  }
-
-  // Was dragging — complete the drop.
-  e.preventDefault();
-  const t = e.changedTouches[0];
-  const elem = document.elementFromPoint(t.clientX, t.clientY);
-  if (elem) {
-    let target = elem;
-    while (target && (!target.dataset || (!target.dataset.emp && !target.dataset.slot))) {
-      target = target.parentElement;
-    }
-    if (target && target.dataset && target.dataset.emp && target.dataset.slot) {
-      handleDrop({ preventDefault:()=>{} }, target.dataset.emp, target.dataset.slot);
-    }
-  }
-  handleDragEnd();
-};
-
-
-  const handleDragOver = (e, employeeId, slot) => {
-    if(!dragState.dragging || isTouchDragging) return; // HTML5 path only
-    e.preventDefault();
-    const allowed = canPlaceAppointment(dragState.appt, employeeId, slot);
-    setHoverTarget(prev => (prev.employee===employeeId && prev.slot===slot && prev.allowed===allowed) ? prev : { employee:employeeId, slot, allowed });
-    if (e.dataTransfer) e.dataTransfer.dropEffect = allowed ? 'move' : 'none';
-  };
-
-  const handleDrop = async (e, employeeId, slot) => {
-    if(!dragState.dragging) return;
-    if (e && e.preventDefault) e.preventDefault();
-    const appt = dragState.appt;
-    const allowed = canPlaceAppointment(appt, employeeId, slot);
-    if(!allowed) { handleDragEnd(); return; }
-    try {
-      const updated = { ...appt, employee: employeeId, time: slot, date: dateKey };
-      await saveAppointment(updated);
-      backupAppointment('save', updated);
-    } catch(err){ console.error('Drag move save error', err); }
-    handleDragEnd();
-  };
+  // Drag & drop handlers removed — DnD disabled.
 
   async function handleConfirmDelete(){
     if(confirmState.open && confirmState.apptId){
@@ -458,13 +306,23 @@ const handleTouchEnd = (e) => {
         padding: '0 8px',
         boxSizing: 'border-box',
         WebkitTapHighlightColor: 'transparent',
-        touchAction: isTouchDragging ? 'none' : 'manipulation',
-        userSelect: isTouchDragging ? 'none' : 'auto'
+  touchAction: 'manipulation',
+  userSelect: 'auto'
       }}
     >
-      <Button color="pink" variant="light" onClick={handleCalculateDay} style={{ marginTop: '-65px' }}>
-        Υπολογισμός Ημέρας
-      </Button>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', width: '100%', marginTop: -8, marginBottom: 6, overflowX: 'auto', padding: '6px 4px', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
+        <button onClick={() => navigate('/')} style={{ padding: '6px 8px', minWidth: 48, flex: '0 0 auto', border: '1px solid rgba(214,51,108,0.15)', background: '#fff', borderRadius: 8, cursor: 'pointer', boxShadow: '0 1px 0 rgba(0,0,0,0.02)' }}>Πίσω</button>
+        <button onClick={() => navigate(`/appointment?date=${dayjs(date).subtract(1, 'day').format('YYYY-MM-DD')}`)} title="Προηγούμενη ημέρα" style={{ flex: '0 0 auto', padding: 6, border: '1px solid rgba(214,51,108,0.15)', background: '#fff', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 6L9 12L15 18" stroke="#d6336c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <div style={{ flex: '0 1 auto', maxWidth: 160, textAlign: 'center', padding: '0 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <strong style={{ fontSize: 13 }}>{dayjs(date).format('dddd, DD MMM YYYY')}</strong>
+        </div>
+        <button onClick={() => navigate(`/appointment?date=${dayjs(date).add(1, 'day').format('YYYY-MM-DD')}`)} title="Επόμενη ημέρα" style={{ flex: '0 0 auto', padding: 6, border: '1px solid rgba(214,51,108,0.15)', background: '#fff', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 6L15 12L9 18" stroke="#d6336c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <button onClick={handleCalculateDay} style={{ padding: '4px 8px', minWidth: 92,maxWidth:'130px', flex: '0 0 auto', background: '#fff0f6', border: '1px solid #d6336c', color: '#d6336c', borderRadius: 6, cursor: 'pointer',fontSize:'12px' }}>Υπολογισμός Ημέρας</button>
+      </div>
 
       <Paper
         withBorder
@@ -478,8 +336,8 @@ const handleTouchEnd = (e) => {
           border: '1px solid rgba(214,51,108,0.25)',
           overflowX: 'auto',
           position:'relative',
-          userSelect: isTouchDragging ? 'none' : 'auto',
-          WebkitUserSelect: isTouchDragging ? 'none' : 'auto'
+          userSelect: 'auto',
+          WebkitUserSelect: 'auto'
         }}
       >
         <div style={{ flex: 1, minWidth: '320px', width: '100%' }}>
@@ -544,8 +402,8 @@ const handleTouchEnd = (e) => {
                             styles.empCell,
                             !startCell && working ? styles.workingSlot : '',
                             apptCellClass,
-                            dragState.dragging && hoverTarget.employee===e.id && hoverTarget.slot===slot && !isTouchDragging ? (hoverTarget.allowed? styles.dropTargetAllowed : styles.dropTargetBlocked) : '',
-                            isTouchDragging ? styles.noHighlight : ''
+                            '',
+                            ''
                           ].join(' ')}
                           style={{
                             borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
@@ -553,10 +411,9 @@ const handleTouchEnd = (e) => {
                             padding: '0 2px',
                             verticalAlign: 'middle',
                             ...sharedCellStyle,
-                            userSelect: isTouchDragging ? 'none' : 'auto'
+                            userSelect: 'auto'
                           }}
-                          onDragOver={(ev)=>handleDragOver(ev,e.id,slot)}
-                          onDrop={(ev)=>handleDrop(ev,e.id,slot)}
+                          /* Drag & drop removed */
                           data-emp={e.id}
                           data-slot={slot}
                           rowSpan={startCell ? startCell.span : 1}
@@ -575,18 +432,13 @@ const handleTouchEnd = (e) => {
                               }
                               return (
                                 <Paper
-                                  draggable={!IS_IOS && !isTouchDragging}
-                                  onDragStart={(ev)=>!IS_IOS && handleDragStart(ev,e.id,slot,startCell.appt)}
-                                  onDragEnd={!IS_IOS ? handleDragEnd : undefined}
-                                  onTouchStart={(ev)=>handleTouchStart(ev,e.id,slot,startCell.appt)}
-                                  onTouchMove={handleTouchMove}
-                                  onTouchEnd={handleTouchEnd}
+                                  /* DnD attributes removed */
                                   radius="sm"
                                   p="2px 4px"
                                   className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`}
                                   style={{
                                     border:'none',
-                                    cursor: isTouchDragging ? 'grabbing' : 'grab',
+                                    cursor: 'grab',
                                     minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`,
                                     display: 'flex',
                                     alignItems: 'center',
@@ -597,7 +449,7 @@ const handleTouchEnd = (e) => {
                                     WebkitTapHighlightColor: 'transparent',
                                     userSelect: 'none',
                                     WebkitUserSelect: 'none',
-                                    touchAction: isTouchDragging ? 'none' : 'manipulation'
+                                    touchAction: 'manipulation'
                                   }}
                                 >
                                   {(() => { 
@@ -716,7 +568,7 @@ const handleTouchEnd = (e) => {
                                   background:'rgba(34,197,94,0.08)',
                                   WebkitTapHighlightColor: 'transparent',
                                   userSelect:'none',
-                                  touchAction: isTouchDragging ? 'none' : 'manipulation'
+                                  touchAction: 'manipulation'
                                 }}
                                 data-emp={e.id}
                                 data-slot={slot}
