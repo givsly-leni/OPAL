@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { Table, Text, Group, Badge, ActionIcon, Stack, Alert, Paper, Button } from '@mantine/core';
 import styles from './ScheduleGrid.module.css';
-import { IconPlus, IconX, IconPencil, IconCircleCheck, IconClock, IconPhoneOff } from '@tabler/icons-react';
+import { IconPlus, IconX, IconPencil, IconCircleCheck, IconClock, IconPhoneOff, IconStar } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { deleteAppointment, saveAppointment } from '../services/appointmentService';
 import { backupAppointment } from '../services/backupService';
@@ -151,7 +151,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     return new Set(Object.entries(map).filter(([,emps])=>emps.size>1).map(([p])=>p));
   }, [dayAppointments]);
 
-  const SHARED_PHONE_COLORS = ['#ff9800','#2196f3','#4caf50','#9c27b0','#ff5722','#3f51b5','#009688','#e91e63'];
+  const SHARED_PHONE_COLORS = ['#ff9800','#2196f3','#4caf50','#9c27b0','#ff5722','#3f51b5','#009688','#bbe9e9ff'];
   const sharedColorCache = useMemo(()=>{
     const cache = {};
     let idx = 0;
@@ -430,6 +430,15 @@ const handleTouchEnd = (e) => {
     } catch(err){ console.error('Status toggle error', err); }
   };
 
+  const toggleStar = async (appt) => {
+    if (!appt) return;
+    try {
+      const updated = { ...appt, starred: !appt.starred };
+      await saveAppointment(updated);
+      backupAppointment('save', updated);
+    } catch (err) { console.error('Toggle star error', err); }
+  };
+
   if (slots.length === 0) {
     return (
       <Stack gap="sm">
@@ -646,7 +655,27 @@ const handleTouchEnd = (e) => {
                                       </ActionIcon>
                                     );
                                   })()}
-                                  <ActionIcon size="sm" variant="light" color={color} radius="sm" onClick={()=>openEdit(e.id,slot)} title="Επεξεργασία" style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><IconPencil size={14}/></ActionIcon>
+                                  {(() => {
+                                    const isStarred = !!startCell.appt.starred;
+                                    const starStyle = isStarred
+                                      ? { backgroundColor: '#2e7d32', color: '#fff' }
+                                      : { backgroundColor: '#f2f4f6', color: '#6b6f73' };
+                                    const title = isStarred ? 'Αγαπημένο (απενεργοποίηση)' : 'Σημείωση ως αγαπημένο';
+                                    return (
+                                      <ActionIcon
+                                        size="sm"
+                                        variant={isStarred ? 'filled' : 'subtle'}
+                                        color={isStarred ? 'green' : undefined}
+                                        radius="sm"
+                                        title={title}
+                                        onClick={(ev)=>{ ev.stopPropagation(); toggleStar(startCell.appt); }}
+                                        style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...starStyle }}
+                                      >
+                                        <IconStar size={14} />
+                                      </ActionIcon>
+                                    );
+                                  })()}
+
                                   <ActionIcon size="sm" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} title="Διαγραφή" style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><IconX size={14}/></ActionIcon>
                                 </Paper>
                               );

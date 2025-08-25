@@ -92,7 +92,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
     price: '',
     paymentType: 'cash',
     durationSelect: '30',
-    duration: 30
+    
   });
   const [formError, setFormError] = useState('');
   const [scheduleError, setScheduleError] = useState('');
@@ -178,23 +178,22 @@ export function AppointmentForm({ appointments, setAppointments }) {
     
     const dateKey = dayjs(date).format('YYYY-MM-DD');
     const appointmentData = {
-      id: form.id, // will trigger update when present
+      id: form.id, 
       date: dateKey,
       employee: employeeId,
       time: hour,
       client: form.client.trim(),
       phone: form.phone.trim(),
-      duration: parseInt(form.duration, 10) || 30,
       description: form.description.trim(),
       clientInfo: form.clientInfo.trim(),
-  price: form.price !== '' ? parseFloat(form.price) : null,
+      price: form.price !== '' ? parseFloat(form.price) : null,
       paymentType: form.paymentType || ''
     };
 
     try {
       // Save to Firebase
-  await saveAppointment(appointmentData);
-  backupAppointment('save', appointmentData);
+      await saveAppointment(appointmentData);
+      backupAppointment('save', appointmentData);
       console.log('Appointment saved to Firebase:', appointmentData);
 
       // Upsert customer profile (fire and forget intentionally after appointment save)
@@ -284,7 +283,10 @@ export function AppointmentForm({ appointments, setAppointments }) {
             price: cust.price || '',
             paymentType: cust.paymentType || '',
             durationSelect: '30',
-            duration: typeof form.duration === 'number' ? form.duration : 30
+            // Clear duration when selecting an existing customer so we don't
+            // pre-fill any prior appointment duration that may be stored on
+            // the customer record.
+            duration: ''
           
     });
   if(cust.name){ setNameQuery(cust.name); }
