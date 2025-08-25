@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Paper, 
@@ -160,6 +160,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
   const employee = EMPLOYEES.find(e => e.id === employeeId);
 
   const [availableSlots, setAvailableSlots] = useState([]);
+  const originalApptRef = useRef(null);
 
   // Calculate remaining free minutes from selected hour until either next appointment or shift end
   useEffect(()=>{
@@ -226,7 +227,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
   if (existingAppointment) {
         const duration = existingAppointment.duration || 30;
         
-        setForm({
+  setForm({
           id: existingAppointment.id,
           client: existingAppointment.client || '',
           phone: existingAppointment.phone || '',
@@ -240,7 +241,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
       employeeSelect: existingAppointment.displayEmployee || '',
       employeeExplicit: existingAppointment.employeeExplicit || false,
       time: existingAppointment.time || hour || ''
-        });
+  });
+  // keep a reference to the original appointment for edit logic
+  originalApptRef.current = existingAppointment;
       }
     }
   }, [mode, appointments, dateStr, employeeId, hour]);
@@ -265,13 +268,19 @@ export function AppointmentForm({ appointments, setAppointments }) {
     }
     
     const dateKey = dayjs(date).format('YYYY-MM-DD');
-    // Final validation: assignedEmployee and time must be set
+    // Final validation: assignedEmployee must be set
     if (!form.assignedEmployee) { setFormError('Πρέπει να επιλέξετε εργαζόμενο'); return; }
-    if (!form.time) { setFormError('Πρέπει να επιλέξετε ώρα'); return; }
+
+    // If we're editing and the user didn't change time but kept same employee, allow using original time
+    let effectiveTime = form.time;
+    if (!effectiveTime && mode === 'edit' && originalApptRef.current && originalApptRef.current.employee === form.assignedEmployee) {
+      effectiveTime = originalApptRef.current.time;
+    }
+    if (!effectiveTime) { setFormError('Πρέπει να επιλέξετε ώρα'); return; }
 
     // Defensive overlap check before saving
     const dayAppts = (appointments?.[dateKey] || []).filter(a => a.employee === form.assignedEmployee && a.id !== form.id);
-    const chosenStart = dayjs(`${dateKey}T${form.time}`);
+    const chosenStart = dayjs(`${dateKey}T${effectiveTime}`);
     const chosenEnd = chosenStart.add(parseInt(form.duration || 30, 10), 'minute');
     const conflict = dayAppts.some(a => {
       const aStart = dayjs(`${dateKey}T${a.time}`);
@@ -286,7 +295,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
       // Move the appointment to the chosen employee/time
       employee: form.assignedEmployee,
       displayEmployee: form.employeeSelect || null,
-      time: form.time,
+  time: effectiveTime,
       client: form.client.trim(),
       phone: form.phone.trim(),
       description: form.description.trim(),
@@ -361,7 +370,15 @@ export function AppointmentForm({ appointments, setAppointments }) {
     const t = setTimeout(async () => {
       const results = await searchCustomersByPhonePrefix(phoneQuery, 6);
       if (active) {
-        setCustomerSuggestions(results);
+        // dedupe by phone
+        const dedup = [];
+        const seen = new Set();
+        for (const r of results) {
+          const p = (r.phone || '').trim();
+          const key = p || r.id || JSON.stringify(r);
+          if (!seen.has(key)) { seen.add(key); dedup.push(r); }
+        }
+        setCustomerSuggestions(dedup);
         setShowSuggestions(true);
       }
     }, 250);
@@ -379,7 +396,14 @@ export function AppointmentForm({ appointments, setAppointments }) {
     const t = setTimeout(async () => {
       const results = await searchCustomersByNamePrefix(nameQuery, 6);
       if (active) {
-        setNameSuggestions(results);
+        // dedupe by id+phone
+        const dedup = [];
+        const seen = new Set();
+        for (const r of results) {
+          const key = `${r.id || ''}::${(r.phone||'').trim()}::${(r.name||'').trim()}`;
+          if (!seen.has(key)) { seen.add(key); dedup.push(r); }
+        }
+        setNameSuggestions(dedup);
       }
     }, 250);
     return ()=>{ active=false; clearTimeout(t); };
@@ -388,7 +412,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
   function handleSelectSuggestion(cust) {
   setForm(prev => ({
       ...prev,
-      id: undefined,
+      // don't clear id when editing
+      id: mode === 'edit' ? prev.id : undefined,
       client: cust.name || '',
       phone: cust.phone || '',
       // preserve any existing description the user typed in the form
@@ -400,7 +425,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
       duration: ''
     }));
   if(cust.name){ setNameQuery(cust.name); }
-    setCustomerLoaded(true);
+  setCustomerLoaded(true);
     setShowSuggestions(false);
   }
 
