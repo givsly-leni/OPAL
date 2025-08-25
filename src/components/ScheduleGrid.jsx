@@ -615,7 +615,22 @@ const handleTouchEnd = (e) => {
                                         title={`${fullName}${firstDescWord? ' • '+firstDescWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
                                         style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.18)', border:'none', color:'#fff', userSelect:'none' }}
                                       >
-                                        {clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}
+                                        {(() => {
+                                          // Only show an employee initial if it was explicitly
+                                          // selected when creating/editing the appointment.
+                                          if (!startCell.appt.employeeExplicit) {
+                                            return <span>{clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}</span>;
+                                          }
+                                          const empId = startCell.appt.displayEmployee || startCell.appt.employee || startCell.appt.employeeId || e.id;
+                                          const emp = EMPLOYEES.find(x=>x.id===empId);
+                                          const initial = emp ? emp.name.charAt(0) : (empId ? empId.charAt(0).toUpperCase() : '');
+                                          return (
+                                            <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                              {initial ? <strong style={{ marginRight:4, fontSize:12 }}>({initial})</strong> : null}
+                                              <span>{clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}</span>
+                                            </span>
+                                          );
+                                        })()}
                                       </Badge>
                                     );
                                   })()}

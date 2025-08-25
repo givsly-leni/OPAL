@@ -91,7 +91,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
     clientInfo: '', // persistent client information (preferences, notes)
     price: '',
     paymentType: 'cash',
-    durationSelect: '30',
+  durationSelect: '30',
+  employeeSelect: employeeId || '',
+  employeeExplicit: false,
     
   });
   const [formError, setFormError] = useState('');
@@ -159,7 +161,10 @@ export function AppointmentForm({ appointments, setAppointments }) {
           price: existingAppointment.price || '',
           paymentType: existingAppointment.paymentType || 'cash',
           durationSelect: '30',
-          duration: duration
+          duration: duration,
+          // Load previously selected display employee (if any) separately
+          employeeSelect: existingAppointment.displayEmployee || '',
+          employeeExplicit: existingAppointment.employeeExplicit || false
         });
       }
     }
@@ -188,7 +193,10 @@ export function AppointmentForm({ appointments, setAppointments }) {
     const appointmentData = {
       id: form.id, 
       date: dateKey,
+      // Keep the appointment assigned to the column employee (do not move it)
       employee: employeeId,
+      // Save the optionally selected employee only for display purposes
+      displayEmployee: form.employeeSelect || null,
       time: hour,
       client: form.client.trim(),
       phone: form.phone.trim(),
@@ -201,6 +209,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
       duration: form.duration !== '' && form.duration !== undefined && form.duration !== null
         ? parseInt(form.duration, 10)
         : null
+  ,
+  employeeExplicit: !!form.employeeExplicit
     };
 
     try {
@@ -617,6 +627,22 @@ export function AppointmentForm({ appointments, setAppointments }) {
                 >
                   <option value="cash">Μετρητά</option>
                   <option value="card">Κάρτα</option>
+                </select>
+              </div>
+              <div style={{ width: '100%', maxWidth: 220, margin: '8px auto' }}>
+                <label htmlFor="employeeSelect" style={{ display: 'block', fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center', width: '100%' }}>
+                  Προτιμηση εργαζόμενου
+                </label>
+                <select
+                  id="employeeSelect"
+                  value={form.employeeSelect}
+                  onChange={e => setForm(f => ({ ...f, employeeSelect: e.target.value, employeeExplicit: !!e.target.value }))}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #d6336c', fontSize: 14, textAlign: 'center', background: '#fff' }}
+                >
+                  <option value="">(εργαζόμενοι)</option>
+                  {EMPLOYEES.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                  ))}
                 </select>
               </div>
 
