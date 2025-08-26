@@ -14,7 +14,7 @@ import {
   Container,
   Divider
 } from '@mantine/core';
-import { saveAppointment, deleteAppointment } from '../services/appointmentService';
+import { saveAppointment, deleteAppointment, getAppointments as fetchAppointments } from '../services/appointmentService';
 import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix, searchCustomersByNamePrefix } from '../services/customerService';
 import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
@@ -278,8 +278,33 @@ export function AppointmentForm({ appointments, setAppointments }) {
     }
     if (!effectiveTime) { setFormError('Πρέπει να επιλέξετε ώρα'); return; }
 
-    // Defensive overlap check before saving
-    const dayAppts = (appointments?.[dateKey] || []).filter(a => a.employee === form.assignedEmployee && a.id !== form.id);
+    // Defensive overlap check before saving — re-fetch latest appointments to avoid races
+    let dayApptsSrc = appointments;
+    // attempt fetch with retries/backoff
+    async function tryFetchWithRetry(attempts = 3) {
+      let lastErr = null;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const res = await fetchAppointments();
+          return res;
+        } catch (err) {
+          lastErr = err;
+          console.warn('appointments fetch attempt', i+1, 'failed:', err?.code || err?.message || err);
+          // small backoff
+          await new Promise(r => setTimeout(r, 200 * Math.pow(2, i)));
+        }
+      }
+      throw lastErr;
+    }
+
+    try {
+      const latest = await tryFetchWithRetry(3);
+      dayApptsSrc = latest || appointments;
+    } catch (err) {
+      // fallback to local in-memory appointments if fetch fails
+      console.warn('Could not fetch latest appointments before save, using local state', err?.code || err?.message || err);
+    }
+    const dayAppts = (dayApptsSrc?.[dateKey] || []).filter(a => a.employee === form.assignedEmployee && a.id !== form.id);
     const chosenStart = dayjs(`${dateKey}T${effectiveTime}`);
     const chosenEnd = chosenStart.add(parseInt(form.duration || 30, 10), 'minute');
     const conflict = dayAppts.some(a => {

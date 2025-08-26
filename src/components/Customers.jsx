@@ -29,8 +29,9 @@ export default function Customers() {
   );
 
   function openEdit(cust) {
+    console.log('Editing customer:', cust);
     setEditCustomer(cust);
-  setForm({ name: cust.name || '', phone: cust.phone || '', clientInfo: cust.clientInfo || '' });
+    setForm({ name: cust.name || '', phone: cust.phone || '', clientInfo: cust.clientInfo || '' });
     setModalOpen(true);
   }
 
