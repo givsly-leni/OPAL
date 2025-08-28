@@ -1,5 +1,5 @@
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, orderBy, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db } from '../firebase.js';
 import { searchCustomersByNamePrefix, searchCustomersByPhonePrefix, saveCustomer } from './customerService';
 
 // Keep a lightweight localStorage fallback for offline or dev scenarios

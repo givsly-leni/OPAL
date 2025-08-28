@@ -21,7 +21,7 @@ export function FirebaseTest() {
         service: 'Test Service'
       };
       
-      console.log('Testing Firebase with:', testAppointment);
+  console.log('Testing Firebase connection (saving small test appointment)');
       const appointmentId = await saveAppointment(testAppointment);
       setStatus(`✅ Success! Test appointment saved with ID: ${appointmentId}`);
     } catch (error) {

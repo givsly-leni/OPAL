@@ -416,7 +416,8 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                         try {
                           const rawPrice = startCell.appt.price;
                           if ((rawPrice !== null && rawPrice !== undefined && rawPrice !== '') && !isAppointmentPaid(startCell.appt)) {
-                            console.warn('[ScheduleGrid] price-present-but-not-paid', { id: startCell.appt.id, date: startCell.appt.date, time: startCell.appt.time, price: rawPrice, paymentType: startCell.appt.paymentType });
+                            // Avoid logging full appointment objects; log a concise summary instead.
+                            console.warn(`[ScheduleGrid] price-present-but-not-paid id=${startCell.appt.id} date=${startCell.appt.date} time=${startCell.appt.time} price=${rawPrice} paymentType=${startCell.appt.paymentType}`);
                           }
                         } catch(e) {}
                       }
@@ -461,7 +462,8 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                 try {
                                   const rawPrice = startCell.appt.price;
                                   if ((rawPrice !== null && rawPrice !== undefined && rawPrice !== '') && !isAppointmentPaid(startCell.appt)) {
-                                    console.warn('[ScheduleGrid] price-present-but-not-paid', { id: startCell.appt.id, date: startCell.appt.date, time: startCell.appt.time, price: rawPrice, paymentType: startCell.appt.paymentType });
+                                    // Avoid logging full appointment objects; log a concise summary instead.
+                                    console.warn(`[ScheduleGrid] price-present-but-not-paid id=${startCell.appt.id} date=${startCell.appt.date} time=${startCell.appt.time} price=${rawPrice} paymentType=${startCell.appt.paymentType}`);
                                   }
                                 } catch(e) {}
                               }

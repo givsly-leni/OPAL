@@ -21,6 +21,13 @@ import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
 import { getEmployeeScheduleForDate } from '../services/scheduleService';
 
+// Local debug flag for appointment logs (set REACT_APP_DEBUG_APPTS or VITE_DEBUG_APPTS)
+const DEBUG_APPTS = (() => {
+  try { if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_DEBUG_APPTS === 'true') return true; } catch(e){}
+  try { if (import.meta && import.meta.env && (import.meta.env.VITE_DEBUG_APPTS === 'true' || import.meta.env.REACT_APP_DEBUG_APPTS === 'true')) return true; } catch(e){}
+  return false;
+})();
+
 const EMPLOYEES = [
   { id: 'aggelikh', name: 'Αγγελικη' },
   { id: 'emmanouela', name: 'Εμμανουελα' },
@@ -291,7 +298,10 @@ export function AppointmentForm({ appointments, setAppointments }) {
     apt.employee === employeeId && apt.time === hour
       );
       
-      console.log('Loading edit data:', { dateKey, employeeId, hour, existingAppointment, appointments });
+  // Avoid dumping the full appointments object to console (can be large).
+  const totalDates = Object.keys(appointments || {}).length;
+  const totalAppts = Object.keys(appointments || {}).reduce((sum, k) => sum + ((appointments[k]||[]).length || 0), 0);
+  if (DEBUG_APPTS) console.log(`Loading edit data for ${dateKey} ${employeeId} ${hour} — ${totalAppts} total appointments across ${totalDates} date(s)`);
       
   if (existingAppointment) {
         const duration = existingAppointment.duration || 30;
@@ -439,7 +449,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
       } catch (err) {
         console.warn('Local appointments update failed (non-blocking):', err);
       }
-      console.log('Appointment saved to Firebase:', appointmentData);
+  // Avoid printing the whole appointment object (can be large). Log a short summary only when debugging.
+  if (DEBUG_APPTS) console.log(`Appointment saved: id=${appointmentData.id} date=${appointmentData.date} time=${appointmentData.time}`);
 
       // Upsert customer profile (fire and forget intentionally after appointment save)
       if (form.phone.trim()) {
@@ -555,14 +566,14 @@ export function AppointmentForm({ appointments, setAppointments }) {
 
   function handleDeleteConfirmation() {
     alert('Delete button clicked');
-    console.log('Delete button clicked');
+  if (DEBUG_APPTS) console.log('Delete button clicked');
     const confirmMessage = `Είστε σίγουροι ότι θέλετε να διαγράψετε το ραντεβού του/της "${form.client}" στις ${hour}?\n\nΑυτή η ενέργεια δεν μπορεί να αναιρεθεί.`;
     
     if (confirm(confirmMessage)) {
-      console.log('User confirmed deletion');
+  if (DEBUG_APPTS) console.log('User confirmed deletion');
       handleDelete();
     } else {
-      console.log('User cancelled deletion');
+  if (DEBUG_APPTS) console.log('User cancelled deletion');
     }
   }
 
@@ -578,7 +589,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
       
       if (appointmentToDelete && appointmentToDelete.id) {
         await deleteAppointment(appointmentToDelete.id);
-        console.log('Appointment deleted from Firebase:', appointmentToDelete.id);
+  // Log the deleted appointment id only when debugging — not the whole object.
+  if (DEBUG_APPTS) console.log(`Appointment deleted: id=${appointmentToDelete.id}`);
         alert('Το ραντεβού διαγράφηκε με επιτυχία!');
       } else {
         alert('Δεν βρέθηκε το ραντεβού για διαγραφή.');

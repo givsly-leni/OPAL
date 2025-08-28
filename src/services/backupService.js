@@ -4,7 +4,7 @@
 // NOTE: This is NOT a substitute for server/off-site backups.
 
 import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db } from '../firebase.js';
 
 // --- Incremental appointment change log ---
 const STORAGE_KEY = 'appointmentBackupsV1';

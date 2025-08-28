@@ -15,7 +15,7 @@ export function InstallPrompt() {
     };
 
     const handleAppInstalled = () => {
-      console.log('PWA was installed');
+      // PWA installed (no verbose logging to avoid console spam)
       setShowInstallPrompt(false);
       setDeferredPrompt(null);
     };
@@ -38,11 +38,7 @@ export function InstallPrompt() {
     // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
     
-    if (outcome === 'accepted') {
-      console.log('User accepted the install prompt');
-    } else {
-      console.log('User dismissed the install prompt');
-    }
+  // Note outcome if needed — avoid verbose console logs
 
     setDeferredPrompt(null);
     setShowInstallPrompt(false);

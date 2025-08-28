@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getDocs, collection, doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db } from '../firebase.js';
 import { Button, TextInput, Table, Modal, Group, Paper } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 
@@ -29,7 +29,7 @@ export default function Customers() {
   );
 
   function openEdit(cust) {
-    console.log('Editing customer:', cust);
+  console.log(`Editing customer id=${cust.id} name=${cust.name}`);
     setEditCustomer(cust);
     setForm({ name: cust.name || '', phone: cust.phone || '', clientInfo: cust.clientInfo || '' });
     setModalOpen(true);

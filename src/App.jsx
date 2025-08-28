@@ -7,8 +7,16 @@ import { AppointmentForm } from './components/AppointmentForm';
 import { InstallPrompt } from './components/InstallPrompt';
 import { subscribeToAppointments } from './services/appointmentService';
 import dayjs from 'dayjs';
+
+// Local debug flag for appointment logs (set REACT_APP_DEBUG_APPTS or VITE_DEBUG_APPTS)
+const DEBUG_APPTS = (() => {
+  try { if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_DEBUG_APPTS === 'true') return true; } catch(e){}
+  try { if (import.meta && import.meta.env && (import.meta.env.VITE_DEBUG_APPTS === 'true' || import.meta.env.REACT_APP_DEBUG_APPTS === 'true')) return true; } catch(e){}
+  return false;
+})();
 import Customers from './components/Customers';
 import WaitlistForm from './components/WaitlistForm';
+import PurgeOldAppointments from './components/PurgeOldAppointments';
 
 function AppointmentPage({ appointments, setAppointments }) {
   const navigate = useNavigate();
@@ -65,16 +73,17 @@ function App() {
   const [appointments, setAppointments] = useState({});
   
   useEffect(() => {
-    console.log('Setting up Firebase real-time listener...');
     // Subscribe to real-time updates from Firebase
     const unsubscribe = subscribeToAppointments((newAppointments) => {
-      console.log('Firebase data updated:', newAppointments);
+      const totalDates = Object.keys(newAppointments || {}).length;
+      const totalAppts = Object.keys(newAppointments || {}).reduce((sum, k) => sum + ((newAppointments[k]||[]).length || 0), 0);
+  if (DEBUG_APPTS) console.log(`Firebase update: ${totalAppts} appointments across ${totalDates} date(s)`);
       setAppointments(newAppointments);
     });
-    
+
     // Cleanup subscription on component unmount
     return () => {
-      console.log('Cleaning up Firebase listener');
+  if (DEBUG_APPTS) console.log('Cleaning up Firebase listener');
       unsubscribe();
     };
   }, []);
@@ -140,6 +149,7 @@ function App() {
             <Route path="/appointment-form" element={<AppointmentForm appointments={appointments} setAppointments={setAppointments} />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/waitlist" element={<WaitlistForm />} />
+            <Route path="/admin/purge" element={<PurgeOldAppointments />} />
           </Routes>
           <InstallPrompt />
         </AppShell>

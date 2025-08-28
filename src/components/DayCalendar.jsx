@@ -8,6 +8,7 @@ import 'dayjs/locale/el';
 dayjs.locale('el');
 import { BUSINESS_HOURS } from './ScheduleGrid';
 import { loadWaitlistForDate, removeWaiting } from '../services/waitlistService';
+import { purgeAppointmentsBefore } from '../services/appointmentService';
 import { IconPlus, IconX } from '@tabler/icons-react';
 
 export function DayCalendar() {
@@ -105,6 +106,29 @@ export function DayCalendar() {
               style={{ fontWeight: 600 }}
             >
               Πελάτισσες
+            </Button>
+            <Button
+              color="gray"
+              variant="subtle"
+              size="md"
+              style={{ fontWeight: 600 }}
+              onClick={async () => {
+                // Preview matches for cutoff = today (delete strictly before today)
+                const cutoff = dayjs().format('YYYY-MM-DD');
+                try {
+                  const preview = await purgeAppointmentsBefore(cutoff, true);
+                  const n = preview.matched?.length || 0;
+                  if (n === 0) return alert('Δεν βρέθηκαν ραντεβού από προηγούμενες ημέρες για διαγραφή.');
+                  if (!confirm(`Βρέθηκαν ${n} ραντεβού πριν από την ${cutoff}. Θέλετε να τα διαγράψετε; Αυτή η ενέργεια δεν μπορεί να ανακληθεί.`)) return;
+                  const res = await purgeAppointmentsBefore(cutoff, false);
+                  alert(`Διαγράφηκαν ${res.deletedCount || 0} ραντεβού.`);
+                } catch (err) {
+                  console.error('Purge failed', err);
+                  alert('Αποτυχία διαγραφής. Ελέγξτε την κονσόλα για λεπτομέρειες.');
+                }
+              }}
+            >
+              Διαγραφή παλιών
             </Button>
           </div>
           <DatePicker

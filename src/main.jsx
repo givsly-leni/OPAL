@@ -13,7 +13,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((reg) => {
-        console.log('SW registered (minimal, no caching):', reg.scope);
+  console.log('Service worker registered:', reg?.scope || '(no scope)');
         // Force update check
         if (reg.update) reg.update();
       })

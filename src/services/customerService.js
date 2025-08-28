@@ -1,5 +1,5 @@
 import { doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db } from '../firebase.js';
 
 const COLLECTION_NAME = 'customers';
 
