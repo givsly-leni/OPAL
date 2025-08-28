@@ -269,11 +269,12 @@ export function AppointmentForm({ appointments, setAppointments }) {
   // intact so fixing duration can immediately enable Save.
   }
 
-  // Immediate recompute for structural changes (employee, appointments, date, id, durationSelect)
+  // Immediate recompute for structural changes (employee, appointments, date, id, duration)
+  // Also fire when the duration value changes so the slot list updates promptly.
   useEffect(() => {
     doRecomputeSlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.assignedEmployee, appointments, date, form.id, form.durationSelect]);
+  }, [form.assignedEmployee, appointments, date, form.id, form.duration]);
 
   // Debounced recompute for free-form duration typing to avoid transient clears on touch keyboards
   useEffect(() => {
