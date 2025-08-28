@@ -8,6 +8,7 @@ import { InstallPrompt } from './components/InstallPrompt';
 import { subscribeToAppointments } from './services/appointmentService';
 import dayjs from 'dayjs';
 import Customers from './components/Customers';
+import WaitlistForm from './components/WaitlistForm';
 
 function AppointmentPage({ appointments, setAppointments }) {
   const navigate = useNavigate();
@@ -138,6 +139,7 @@ function App() {
             <Route path="/appointment" element={<AppointmentPage appointments={appointments} setAppointments={setAppointments} />} />
             <Route path="/appointment-form" element={<AppointmentForm appointments={appointments} setAppointments={setAppointments} />} />
             <Route path="/customers" element={<Customers />} />
+            <Route path="/waitlist" element={<WaitlistForm />} />
           </Routes>
           <InstallPrompt />
         </AppShell>

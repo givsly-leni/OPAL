@@ -120,6 +120,14 @@ export function startFullDatabaseAutoBackup(){
   }, err => console.warn('Full backup customers snapshot error', err));
 
   fullBackupUnsubscribers = [unsubAppts, unsubCustomers];
+  // If nightly auto-download preference is enabled, ensure scheduler is running
+  try {
+    const pref = localStorage.getItem('nightlyAutoDownloadEnabledV1');
+    if (pref === 'true') {
+      scheduleNightlyDownload();
+    }
+  } catch (e) { /* ignore */ }
+
   return stopFullDatabaseAutoBackup;
 }
 
@@ -139,6 +147,60 @@ export function downloadFullDatabaseSnapshot(){
   document.body.appendChild(a);
   a.click();
   setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+
+// ================= NIGHTLY AUTO-DOWNLOAD SCHEDULER =================
+let nightlyTimer = null;
+const NIGHTLY_PREF_KEY = 'nightlyAutoDownloadEnabledV1';
+const LAST_NIGHTLY_KEY = 'lastNightlyDownloadV1';
+
+function msUntilNext(hour = 23, minute = 0) {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  return next - now;
+}
+
+function scheduleNightlyDownload() {
+  try { stopNightlyDownload(); } catch(_){}
+  // schedule first run
+  const ms = msUntilNext(23, 0);
+  nightlyTimer = setTimeout(function run() {
+    try {
+      // ensure full snapshot persisted to localStorage before download
+      const snap = getFullDatabaseSnapshot();
+      if (!snap) {
+        console.warn('Nightly download: no full snapshot available; skipping file download.');
+      } else {
+        downloadFullDatabaseSnapshot();
+        try { localStorage.setItem(LAST_NIGHTLY_KEY, new Date().toISOString()); } catch(e){}
+      }
+    } catch (err) { console.error('Nightly download error', err); }
+    // schedule next run in ~24h
+    nightlyTimer = setTimeout(run, 24 * 60 * 60 * 1000);
+  }, ms);
+}
+
+function stopNightlyDownload() {
+  if (nightlyTimer) { clearTimeout(nightlyTimer); nightlyTimer = null; }
+}
+
+export function enableNightlyAutoDownload(enable = true) {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(NIGHTLY_PREF_KEY, enable ? 'true' : 'false'); } catch(e){}
+  if (enable) {
+    scheduleNightlyDownload();
+  } else {
+    stopNightlyDownload();
+  }
+}
+
+export function isNightlyAutoDownloadEnabled() {
+  try { return localStorage.getItem(NIGHTLY_PREF_KEY) === 'true'; } catch(e){ return false; }
+}
+
+export function getLastNightlyDownloadTimestamp() {
+  try { return localStorage.getItem(LAST_NIGHTLY_KEY); } catch(e){ return null; }
 }
 
 // (Optional) restore helpers can be added later; we intentionally avoid automatic write-back for safety.

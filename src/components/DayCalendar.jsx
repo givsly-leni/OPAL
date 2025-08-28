@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Paper, Stack, Title, Text, Divider, Modal, Button } from '@mantine/core';
+import { useState, useEffect } from 'react';
+import { Paper, Stack, Title, Text, Divider, Button, TextInput, Textarea, Group } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { DatePicker } from '@mantine/dates';
 import { useNavigate } from 'react-router-dom';
@@ -7,11 +7,16 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/el';
 dayjs.locale('el');
 import { BUSINESS_HOURS } from './ScheduleGrid';
+import { loadWaitlistForDate, removeWaiting } from '../services/waitlistService';
+import { IconPlus, IconX } from '@tabler/icons-react';
 
 export function DayCalendar() {
   const [date, setDate] = useState(new Date());
   const navigate = useNavigate();
   const [closedModal, setClosedModal] = useState({ open: false, label: '' });
+  const [waitlist, setWaitlist] = useState([]);
+  const [isNarrow, setIsNarrow] = useState(typeof window !== 'undefined' ? window.innerWidth < 760 : false);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: '' });
 
   function handlePick(val) {
     if (!val) return;
@@ -22,7 +27,29 @@ export function DayCalendar() {
     } else {
       navigate(`/appointment?date=${dayjs(val).format('YYYY-MM-DD')}`);
     }
+    // load waitlist for newly selected date (async)
+    (async ()=>{
+      const arr = await loadWaitlistForDate(dayjs(val).format('YYYY-MM-DD'));
+      setWaitlist(arr);
+    })();
   }
+
+  // ensure waitlist updates when `date` changes
+  useEffect(() => {
+    (async ()=>{
+      const arr = await loadWaitlistForDate(dayjs(date).format('YYYY-MM-DD'));
+      setWaitlist(arr);
+    })();
+  }, [date]);
+
+  // Responsive: stack waitlist under calendar on narrow screens (phone)
+  useEffect(()=>{
+    function onResize(){ setIsNarrow(window.innerWidth < 760); }
+    window.addEventListener('resize', onResize);
+    // set initial
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  },[]);
 
   return (
     <div style={{ 
@@ -35,17 +62,18 @@ export function DayCalendar() {
       margin: 0,
       background: 'linear-gradient(135deg, #fff0f6 0%, #f8f9fa 100%)'
     }}>
-      <Paper 
+  <div style={{ display: 'flex', gap: isNarrow ? 12 : 10, width: '100%', justifyContent: 'center', alignItems: 'flex-start', paddingLeft: isNarrow ? 0 : 12, flexDirection: isNarrow ? 'column' : 'row' }}>
+  <Paper 
         withBorder 
         shadow="lg" 
         radius="xl" 
         p="xl" 
         style={{ 
           width: '100%',
-          maxWidth: '650px',
+          maxWidth: isNarrow ? '980px' : '620px',
           minHeight: '420px',
           fontSize: '1.15rem',
-          margin: '24px auto',
+          margin: isNarrow ? '24px auto' : '24px 0',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -154,25 +182,89 @@ export function DayCalendar() {
           </Stack>
         </Stack>
       </Paper>
-      
-      <Modal 
-        opened={closedModal.open} 
-        onClose={() => setClosedModal({ open: false, label: '' })} 
-        title="Κλειστά" 
-        centered
-        size="sm"
-      >
-        <Stack gap="md">
-          <Text>Είμαστε κλειστά την ημέρα {closedModal.label}.</Text>
-          <Button 
-            onClick={() => setClosedModal({ open: false, label: '' })}
-            fullWidth
-            color="pink"
-          >
-            Εντάξει
-          </Button>
-        </Stack>
-      </Modal>
+        {/* Waitlist column */}
+  <div style={{ width: isNarrow ? '100%' : 300, display: 'flex', flexDirection: 'column', gap: 10, alignItems: isNarrow ? 'center' : 'flex-start' }}>
+          <Paper withBorder shadow="sm" radius="md" p="md" style={{ border: '1px solid rgba(214,51,108,0.12)', background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div>
+                <Title order={4} style={{ margin: 0, fontSize: '1rem' }}>Αναμονές</Title>
+                <Text size="xs" c="dimmed">Για πελάτισσες χωρίς διαθέσιμο ραντεβού</Text>
+              </div>
+              <Button size="xs" onClick={() => navigate(`/waitlist?date=${dayjs(date).format('YYYY-MM-DD')}`)}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><IconPlus size={14}/>Προσθήκη</span>
+              </Button>
+            </div>
+          </Paper>
+          <div style={{ maxHeight: 420, overflowY: 'auto', width: '100%' }}>
+            {waitlist.length === 0 ? (
+              <Paper withBorder radius="md" p="md" style={{ textAlign: 'center', color: '#666' }}>Δεν υπάρχουν αναμονές</Paper>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {waitlist.map(w => (
+                  <li key={w.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderLeft: '6px solid rgba(214,51,108,0.18)', background: '#fffafc', padding: 8, borderRadius: 8 }}>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{w.name || '—'}</div>
+                        <div style={{ fontSize: 12, color: '#666' }}>{w.phone}</div>
+                        {w.prefs ? <div style={{ fontSize: 12, color: '#444', marginTop: 6 }}>{w.prefs}</div> : null}
+                      </div>
+                      <div style={{ marginLeft: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <Button size="xs" color="gray" variant="subtle" onClick={() => navigate(`/waitlist?date=${dayjs(date).format('YYYY-MM-DD')}&id=${w.id}`)}>
+                          Επεξεργ.
+                        </Button>
+                        <Button size="xs" color="red" variant="subtle" onClick={() => setConfirmDelete({ open: true, id: w.id, name: w.name || '' })}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><IconX size={14}/>Αφαίρ.</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+      {/* Inline closed-day panel to avoid modal interaction problems */}
+      {closedModal.open && (
+        <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 80 }}>
+          <Paper withBorder shadow="lg" p="md" style={{ border: '1px solid rgba(214,51,108,0.14)' }}>
+            <Stack>
+              <Text fw={700}>Κλειστά</Text>
+              <Text>Είμαστε κλειστά την ημέρα {closedModal.label}.</Text>
+              <Button onClick={() => setClosedModal({ open: false, label: '' })} color="pink">Εντάξει</Button>
+            </Stack>
+          </Paper>
+        </div>
+      )}
+      {/* Styled confirmation for deleting waitlist entries */}
+      {confirmDelete.open && (
+        <div style={{ position: 'fixed', left: 0, right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120 }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, background: 'rgba(0,0,0,0.32)' }} onClick={() => setConfirmDelete({ open: false, id: null, name: '' })} />
+          <Paper withBorder shadow="xl" p="lg" radius="md" style={{ position: 'relative', background: '#fff', color: '#111', width: 420, maxWidth: '94%', zIndex: 131, border: '2px solid rgba(214,51,108,0.18)' }}>
+            <Stack spacing="sm">
+              <Title order={4} style={{ margin: 0 }}>Διαγραφή Αναμονής</Title>
+              <Text>Θέλετε σίγουρα να διαγράψετε την αναμονή για <strong>{confirmDelete.name || 'αυτή την πελάτισσα'}</strong>;</Text>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <Button variant="outline" onClick={() => setConfirmDelete({ open: false, id: null, name: '' })}>Άκυρο</Button>
+                <Button color="red" onClick={async () => {
+                  try{
+                    const ok = await removeWaiting(dayjs(date).format('YYYY-MM-DD'), confirmDelete.id);
+                    if(ok === false) throw new Error('remove failed');
+                    const arr = await loadWaitlistForDate(dayjs(date).format('YYYY-MM-DD'));
+                    setWaitlist(arr);
+                  }catch(err){
+                    console.error('Failed to delete waiting', err);
+                    setWaitlist(prev => prev.filter(x => x.id !== confirmDelete.id));
+                  } finally {
+                    setConfirmDelete({ open: false, id: null, name: '' });
+                  }
+                }}>Διαγραφή</Button>
+              </div>
+            </Stack>
+          </Paper>
+        </div>
+      )}
+  {/* waitlist form moved to separate page (/waitlist) */}
     </div>
   );
 }

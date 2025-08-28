@@ -7,12 +7,14 @@ import { deleteAppointment, saveAppointment } from '../services/appointmentServi
 import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
 import { Modal } from '@mantine/core';
+import { getEmployeeScheduleForDate } from '../services/scheduleService';
 
 // Employees (columns)
 const EMPLOYEES = [
-  { id: 'aggelikh', name: 'Αγγελικη' },
-  { id: 'emmanouela', name: 'Εμμανουελα' },
-  { id: 'hliana', name: 'Ηλιανα' },
+  { id: 'aggelikh', name: 'Αγγελική' },
+  { id: 'emmanouela', name: 'Εμμανουέλα' },
+  { id: 'hliana', name: 'Ηλιάνα' },
+  { id: 'kelly', name: 'Κέλλυ' },
 ];
 
 // Per-employee working hours (weekday -> array of [start,end] ranges, 24h format)
@@ -37,6 +39,13 @@ const EMPLOYEE_SCHEDULE = {
     5: [['13:00','21:00']],
     6: [['09:00','15:00']],
   }
+  ,
+  kelly: {
+    3: [['17:00','21:00']],
+    4: [['17:00','21:00']],
+    5: [['17:00','21:00']],
+    6: [['10:00','15:00']],
+  }
 };
 
 // Color accents per employee
@@ -44,6 +53,7 @@ const EMPLOYEE_COLORS = {
   aggelikh: 'pink',
   emmanouela: 'violet',
   hliana: 'teal'
+  , kelly: 'orange'
 };
 
 const EMPLOYEE_CELL_MIN_WIDTH = 'clamp(140px, 18vw, 200px)';
@@ -186,15 +196,14 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   function slotCovered(employeeId, slot) { return !!coverageMap[employeeId]?.[slot]; }
 
   function isEmployeeWorking(employeeId, dateObj, slot){
-    const dayNum = dayjs(dateObj).day();
-    const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum];
+    const ranges = getEmployeeScheduleForDate(employeeId, dateObj) || [];
     if(!ranges) return false;
     return ranges.some(([start,end]) => slot >= start && slot < end);
   }
 
   function getMaxDurationForSlot(employeeId, slot, excludeId){
     const dayNum = dayjs(date).day();
-    const ranges = EMPLOYEE_SCHEDULE[employeeId]?.[dayNum] || [];
+  const ranges = getEmployeeScheduleForDate(employeeId, date) || [];
     const startMoment = dayjs(`${dateKey}T${slot}`);
     let containing = null;
     for(const [rs,re] of ranges){
@@ -393,8 +402,14 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                         isShared = sharedPhones.has(phoneKey);
                         sharedColor = isShared ? sharedColorCache[phoneKey] : null;
                       }
-                      const apptCellClass = startCell ? styles.apptCellActive : '';
-                      const sharedCellStyle = startCell && isShared ? { background: sharedColor } : {};
+                      // Mark the whole table cell as paid only when the appointment has a numeric price
+                      const isPaid = !!startCell && (() => {
+                        const rawPrice = startCell.appt.price;
+                        return rawPrice !== null && rawPrice !== undefined && rawPrice !== '' && !isNaN(parseFloat(rawPrice));
+                      })();
+                      const apptCellClass = startCell && !isPaid ? styles.apptCellActive : '';
+                      const sharedCellStyle = startCell && isShared ? { backgroundColor: sharedColor } : {};
+                      const paidCellStyle = isPaid ? { backgroundColor: '#c7ccd4', borderRight: '1px solid rgba(0,0,0,0.16)', transition: 'background-color 120ms ease' } : {};
                       return (
                         <Table.Td
                           key={e.id}
@@ -411,6 +426,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                             padding: '0 2px',
                             verticalAlign: 'middle',
                             ...sharedCellStyle,
+                            ...paidCellStyle,
                             userSelect: 'auto'
                           }}
                           /* Drag & drop removed */
@@ -426,18 +442,32 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                               } : {};
                               const status = startCell.appt.status || 'unconfirmed';
                               let statusStyle = {};
+                              // Consider appointment paid only if it has a numeric price
+                              const rawPrice = startCell.appt.price;
+                              const isPaid = rawPrice !== null && rawPrice !== undefined && rawPrice !== '' && !isNaN(parseFloat(rawPrice));
+                              // Apply a stronger paid visual to the outer container (Paper)
+                              const paidStyle = isPaid ? {
+                                backgroundColor: '#bfc7d0',
+                                borderRight: '1px solid rgba(0,0,0,0.22)',
+                                boxShadow: 'inset 0 2px 6px rgba(255,255,255,0.6), 0 3px 10px rgba(0,0,0,0.10)',
+                                color: '#4b5561',
+                                cursor: 'default',
+                                transform: 'translateY(0.5px)'
+                              } : {};
                               const isConfirmed = status === 'confirmed';
                               if(isConfirmed && isShared) {
                                 statusStyle = { boxShadow: '0 3px 6px -2px rgba(0,0,0,0.45)' };
                               }
+                              // Inner paid styles for icons/buttons inside the appointment
+                              const paidInnerStyle = isPaid ? { backgroundColor: paidStyle.backgroundColor, color: paidStyle.color } : {};
                               return (
                                 <Paper
                                   /* DnD attributes removed */
                                   radius="sm"
                                   p="2px 4px"
-                                  className={`${styles.apptPaper} ${isShared? styles.sharedApptBase : styles.apptPaperColored}`}
+                                  className={`${styles.apptPaper} ${isShared ? styles.sharedApptBase : (!isPaid ? styles.apptPaperColored : '')}`}
                                   style={{
-                                    border:'none',
+                                    borderWidth: 0,
                                     cursor: 'grab',
                                     minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`,
                                     display: 'flex',
@@ -446,6 +476,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                     width:'100%',
                                     ...sharedStyle,
                                     ...statusStyle,
+                                    ...paidStyle,
                                     WebkitTapHighlightColor: 'transparent',
                                     userSelect: 'none',
                                     WebkitUserSelect: 'none',
@@ -465,7 +496,17 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                         className={styles.apptBadge}
                                         onClick={()=>openEdit(e.id,slot)}
                                         title={`${fullName}${firstDescWord? ' • '+firstDescWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
-                                        style={{ fontSize: 'clamp(10px, 2vw, 13px)', lineHeight: 1.15, padding: '2px 6px', cursor: 'pointer', background:'rgba(255,255,255,0.18)', border:'none', color:'#fff', userSelect:'none' }}
+                                            style={{
+                                            fontSize: 'clamp(10px, 2vw, 13px)',
+                                            lineHeight: 1.15,
+                                            padding: '2px 6px',
+                                            cursor: 'pointer',
+                                            backgroundColor: 'rgba(255,255,255,0.18)',
+                                            borderWidth: 0,
+                                            color: '#fff',
+                                            userSelect: 'none',
+                                            ...(isPaid ? { backgroundColor: paidStyle.backgroundColor || '#bfc7d0', color: paidStyle.color || '#4b5561' } : {})
+                                          }}
                                       >
                                         {(() => {
                                           // Only show an employee initial if it was explicitly
@@ -516,7 +557,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                         radius="sm"
                                         title={title + ' (κλικ για αλλαγή)'}
                                         onClick={(ev)=>{ ev.stopPropagation(); cycleStatus(startCell.appt); }}
-                                        style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...extraStyle }}
+                                        style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...extraStyle, ...paidInnerStyle }}
                                       >
                                         {icon}
                                       </ActionIcon>
@@ -536,45 +577,44 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                         radius="sm"
                                         title={title}
                                         onClick={(ev)=>{ ev.stopPropagation(); toggleStar(startCell.appt); }}
-                                        style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...starStyle }}
+                                        style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...starStyle, ...paidInnerStyle }}
                                       >
                                         <IconStar size={14} />
                                       </ActionIcon>
                                     );
                                   })()}
 
-                                  <ActionIcon size="sm" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} title="Διαγραφή" style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><IconX size={14}/></ActionIcon>
+                                  <ActionIcon size="sm" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} title="Διαγραφή" style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...paidInnerStyle }}><IconX size={14}/></ActionIcon>
                                 </Paper>
                               );
                             })()
                           ) : (
                             working ? (
-                              <ActionIcon
-                                variant="transparent"
-                                size="sm"
-                                color={color}
-                                onClick={()=>openNew(e.id,slot)}
-                                radius="sm"
+                              <button
+                                onClick={() => openNew(e.id, slot)}
                                 className={`${styles.addAction} plusButton`}
                                 style={{
-                                  width:'100%',
-                                  height:'14px',
-                                  minHeight:'14px',
-                                  display:'flex',
-                                  alignItems:'center',
-                                  justifyContent:'center',
-                                  padding:0,
-                                  border:'1px dashed rgba(214,51,108,0.4)',
-                                  background:'rgba(34,197,94,0.08)',
+                                  width: '100%',
+                                  height: '18px',
+                                  minHeight: '18px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: '0 6px',
+                                  border: '1px dashed rgba(214,51,108,0.4)',
+                                  backgroundColor: 'rgba(34,197,94,0.08)',
                                   WebkitTapHighlightColor: 'transparent',
-                                  userSelect:'none',
-                                  touchAction: 'manipulation'
+                                  userSelect: 'none',
+                                  touchAction: 'manipulation',
+                                  cursor: 'pointer',
+                                  position: 'relative'
                                 }}
                                 data-emp={e.id}
                                 data-slot={slot}
+                                title={`Νέο ραντεβού στις ${slot}`}
                               >
-                                <IconPlus size={10}/>
-                              </ActionIcon>
+                                <span style={{ fontSize: 12, color: '#166534', fontWeight: 700, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{slot}</span>
+                              </button>
                             ) : (
                               <div
                                 style={{

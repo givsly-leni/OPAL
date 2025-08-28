@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Stack, Title, Text, Paper, Button, Alert, Group, SimpleGrid, Badge, SegmentedControl, TextInput, Select, NumberInput, Textarea, Divider, ScrollArea } from '@mantine/core';
 import dayjs from 'dayjs';
+import { getEmployeeScheduleForDate } from '../services/scheduleService';
 
 const EMPLOYEES = [
   { id: 'aggelikh', name: 'Αγγελικη' },
   { id: 'emmanouela', name: 'Εμμανουελα' },
   { id: 'hliana', name: 'Ηλιανα' },
+  { id: 'kelly', name: 'Κέλλυ' },
 ];
 
 const BUSINESS_HOURS = {
@@ -108,7 +110,10 @@ export function HourSelectionStep({ date, onBack }) {
             )}
             <SimpleGrid cols={{ base: 4, sm: 6, md: 8 }} spacing={6}>
               {hours.map(h => {
-                const isBooked = bookedHours.includes(h);
+                // Check employee working ranges for this date
+                const ranges = getEmployeeScheduleForDate(employee, date) || [];
+                const isWithinSchedule = ranges.some(([rs,re]) => h >= rs && h < re);
+                const isBooked = bookedHours.includes(h) || !isWithinSchedule;
                 const appt = booked.find(a => a.hour === h);
                 const badgeTitle = isBooked && appt ? `${appt.client}${appt.phone ? ' | ' + appt.phone : ''}${appt.duration ? ' | ' + appt.duration + '′' : ''}${appt.description ? '\n' + appt.description : ''}` : undefined;
                 return (

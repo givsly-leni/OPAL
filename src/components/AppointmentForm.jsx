@@ -14,15 +14,18 @@ import {
   Container,
   Divider
 } from '@mantine/core';
+import { IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 import { saveAppointment, deleteAppointment, getAppointments as fetchAppointments } from '../services/appointmentService';
 import { getCustomerByPhone, saveCustomer, searchCustomersByPhonePrefix, searchCustomersByNamePrefix } from '../services/customerService';
 import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
+import { getEmployeeScheduleForDate } from '../services/scheduleService';
 
 const EMPLOYEES = [
   { id: 'aggelikh', name: 'Αγγελικη' },
   { id: 'emmanouela', name: 'Εμμανουελα' },
   { id: 'hliana', name: 'Ηλιανα' },
+  { id: 'kelly', name: 'Κέλλυ' },
 ];
 
 // Per-employee working hours (weekday -> array of [start,end]) matching ScheduleGrid
@@ -46,6 +49,13 @@ const EMPLOYEE_SCHEDULE = {
     4: [['13:00','21:00']],
     5: [['13:00','21:00']],
     6: [['09:00','15:00']],
+  }
+  ,
+  kelly: {
+    3: [['17:00','21:00']],
+    4: [['17:00','21:00']],
+    5: [['17:00','21:00']],
+    6: [['10:00','15:00']],
   }
 };
 
@@ -73,9 +83,9 @@ function generateHoursForDate(date) {
 
 // Compute available start times (HH:mm) for an employee on a date given a required duration (minutes)
 function computeAvailableSlots({ date, assigned, duration, appointments = {}, excludeId = null, slotMinutes = 15 }) {
-  if (!assigned || !duration) return [];
+  if (!assigned) return [];
   const dayNum = dayjs(date).day();
-  const ranges = EMPLOYEE_SCHEDULE[assigned]?.[dayNum] || [];
+  const ranges = getEmployeeScheduleForDate(assigned, date) || [];
   if (!ranges.length) return [];
 
   const dateKey = dayjs(date).format('YYYY-MM-DD');
@@ -87,7 +97,9 @@ function computeAvailableSlots({ date, assigned, duration, appointments = {}, ex
     });
 
   const slots = [];
-  const req = parseInt(duration, 10) || 0;
+  // duration === 0 is allowed and treated as the minimal slot size (slotMinutes)
+  const raw = parseInt(duration, 10) || 0;
+  const req = raw === 0 ? slotMinutes : raw;
 
   function overlaps(s1, e1, s2, e2) {
     return s1.isBefore(e2) && s2.isBefore(e1);
@@ -165,39 +177,83 @@ export function AppointmentForm({ appointments, setAppointments }) {
   // Calculate remaining free minutes from selected hour until either next appointment or shift end
   useEffect(()=>{
     const assigned = form.assignedEmployee;
-    const selTime = form.time;
-    if(!assigned || !selTime){ setScheduleError(''); return; }
+    if(!assigned) { return; }
+
+    // effectiveSelTime falls back to the route hour or the original appointment's time when editing
+    const effectiveSelTime = form.time || hour || (mode === 'edit' && originalApptRef.current && originalApptRef.current.employee === assigned ? originalApptRef.current.time : '');
+
+    // duration needed for checks
+    const needed = parseInt(form.duration || 0, 10);
+
+    // If we have no selected/effective time, we still want to clear the error when there
+    // exist available slots for the requested duration (e.g., user corrected duration to a fitting one).
+    if(!effectiveSelTime) {
+      if (needed > 0) {
+        if (!Array.isArray(availableSlots) || availableSlots.length === 0) {
+          setScheduleError('Δεν υπάρχουν διαθέσιμες ώρες για αυτή τη διάρκεια');
+          return;
+        }
+        // there are available slots for this duration -> clear the error so user can proceed
+        setScheduleError('');
+        return;
+      }
+      // no time and no needed duration -> keep prior message (if any)
+      return;
+    }
+
     const dayNum = dayjs(date).day();
-    const ranges = EMPLOYEE_SCHEDULE[assigned]?.[dayNum] || [];
+    const ranges = getEmployeeScheduleForDate(assigned, date) || [];
     // Find containing working range
-    const targetRange = ranges.find(([rs,re]) => selTime >= rs && selTime < re);
+    const targetRange = ranges.find(([rs,re]) => effectiveSelTime >= rs && effectiveSelTime < re);
     if(!targetRange){ setScheduleError('Εκτός ωραρίου εργαζόμενου'); return; }
-    const startMoment = dayjs(`${dayjs(date).format('YYYY-MM-DD')}T${selTime}`);
+    const startMoment = dayjs(`${dayjs(date).format('YYYY-MM-DD')}T${effectiveSelTime}`);
     const rangeEnd = dayjs(`${dayjs(date).format('YYYY-MM-DD')}T${targetRange[1]}`);
     // Find next appointment after this start (excluding the one being edited)
     const dateKey = dayjs(date).format('YYYY-MM-DD');
     const empAppts = (appointments?.[dateKey]||[])
-      .filter(a => a.employee===assigned && a.time !== selTime && a.id !== form.id)
+      .filter(a => a.employee===assigned && a.time !== effectiveSelTime && a.id !== form.id)
       .sort((a,b)=>a.time.localeCompare(b.time));
     let nextStart = null;
-    for(const a of empAppts){ if(a.time > selTime){ nextStart = dayjs(`${dateKey}T${a.time}`); break; } }
+    for(const a of empAppts){ if(a.time > effectiveSelTime){ nextStart = dayjs(`${dateKey}T${a.time}`); break; } }
     const hardEnd = nextStart && nextStart.isBefore(rangeEnd) ? nextStart : rangeEnd;
     let free = hardEnd.diff(startMoment,'minute');
     if(free < 0) free = 0;
-    const needed = parseInt(form.duration || 0, 10);
+
+    // If there are no computed available slots for this duration, surface a helpful message
+    try {
+      if (Array.isArray(availableSlots) && assigned) {
+        if ((availableSlots.length === 0) && (needed > 0)) {
+          setScheduleError('Δεν υπάρχουν διαθέσιμες ώρες για αυτή τη διάρκεια');
+          return;
+        }
+        if (effectiveSelTime && availableSlots.length > 0 && availableSlots.indexOf(effectiveSelTime) === -1) {
+          setScheduleError('Η επιλεγμένη ώρα δεν χωρά αυτή τη διάρκεια');
+          return;
+        }
+      }
+    } catch(e) {
+      // ignore; fallthrough to original logic
+    }
+
     if(needed && needed > free){
       setScheduleError('Η διάρκεια είναι εκτός ορίων εργαζομένου');
-    } else {
-      setScheduleError('');
+      return;
     }
-  }, [form.assignedEmployee, form.time, date, appointments, form.id, form.duration]);
+    // if we reached here, all checks passed; clear scheduleError
+    setScheduleError('');
+  }, [form.assignedEmployee, form.time, date, appointments, form.id, form.duration, availableSlots, hour, mode]);
 
-  // Recompute available slots when assigned employee, duration or appointments change
-  useEffect(() => {
+  // Centralized recompute routine used by both immediate and debounced effects
+  function doRecomputeSlots() {
+    // When user leaves duration empty, pass 0 so computeAvailableSlots will
+    // treat it as minimal slot size (slotMinutes) and offer every aligned start.
+    const durationValue = (form.duration !== '' && form.duration !== undefined && form.duration !== null)
+      ? parseInt(form.duration, 10)
+      : 0;
     const slots = computeAvailableSlots({
       date,
       assigned: form.assignedEmployee,
-      duration: form.duration || form.durationSelect,
+      duration: durationValue,
       appointments,
       excludeId: form.id
     });
@@ -207,11 +263,27 @@ export function AppointmentForm({ appointments, setAppointments }) {
       }
       return slots;
     });
-    // If current selected time is no longer available, clear it
-    if (form.time && slots.indexOf(form.time) === -1) {
-      setForm(f => ({ ...f, time: '' }));
-    }
-  }, [form.assignedEmployee, form.duration, appointments, date, form.id]);
+    // Debug: surface computed inputs on occasional tablet issues
+    try { console.debug && console.debug('[computeAvailableSlots]', { assigned: form.assignedEmployee, duration: form.duration || form.durationSelect, slots }); } catch(e) {}
+
+  // Note: do NOT automatically clear the user's selected time here.
+  // Clearing caused a UX issue where correcting the duration would
+  // remove the time and then require the user to re-select it before
+  // saving. Validation will enforce correctness; leave the selection
+  // intact so fixing duration can immediately enable Save.
+  }
+
+  // Immediate recompute for structural changes (employee, appointments, date, id, durationSelect)
+  useEffect(() => {
+    doRecomputeSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.assignedEmployee, appointments, date, form.id, form.durationSelect]);
+
+  // Debounced recompute for free-form duration typing to avoid transient clears on touch keyboards
+  useEffect(() => {
+    const t = setTimeout(() => doRecomputeSlots(), 200);
+    return () => clearTimeout(t);
+  }, [form.duration]);
 
   // Load existing appointment data when in edit mode
   useEffect(() => {
@@ -533,21 +605,72 @@ export function AppointmentForm({ appointments, setAppointments }) {
               </Button>
             </Group>
             
-            <Title 
-              order={2} 
-              ta="center" 
-              c="pink.7" 
-              mb="xs"
-              style={{ fontSize: 'clamp(18px, 3.5vw, 24px)' }}
-            >
-              {mode === 'edit' ? 'Επεξεργασία' : 'Νέο'} Ραντεβού
-            </Title>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+              <Title 
+                order={2} 
+                ta="center" 
+                c="pink.7" 
+                mb="xs"
+                style={{ fontSize: 'clamp(18px, 3.5vw, 24px)', margin: 0 }}
+              >
+                {mode === 'edit' ? 'Επεξεργασία' : 'Νέο'} Ραντεβού
+              </Title>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  type="button"
+                  title="Προηγούμενη διαθέσιμη"
+                  onClick={() => {
+                    if (!availableSlots || availableSlots.length === 0) return;
+                    const current = form.time || hour || '';
+                    let idx = availableSlots.indexOf(current);
+                    if (idx === -1) {
+                      idx = availableSlots.findIndex(s => s > current);
+                      if (idx === -1) idx = availableSlots.length;
+                    }
+                    const prevIdx = idx - 1;
+                    if (prevIdx >= 0) {
+                      const v = availableSlots[prevIdx];
+                      setForm(f => ({ ...f, time: v }));
+                      setFormError('');
+                    }
+                  }}
+                  style={{ width: 56, height: 36, borderRadius: 8, border: '1px solid #d6336c', background: '#fff0f6', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 6 }}
+                  aria-label="Προηγούμενη διαθέσιμη ώρα"
+                >
+                  <IconChevronUp size={18} color="#d6336c" />
+                </button>
+                <button
+                  type="button"
+                  title="Επόμενη διαθέσιμη"
+                  onClick={() => {
+                    if (!availableSlots || availableSlots.length === 0) return;
+                    const current = form.time || hour || '';
+                    let idx = availableSlots.indexOf(current);
+                    if (idx === -1) {
+                      idx = availableSlots.findIndex(s => s > current);
+                      if (idx === -1) idx = availableSlots.length;
+                    }
+                    const nextIdx = idx === -1 ? 0 : idx + (availableSlots[idx] === current ? 1 : 0);
+                    if (nextIdx < availableSlots.length) {
+                      const v = availableSlots[nextIdx];
+                      setForm(f => ({ ...f, time: v }));
+                      setFormError('');
+                    }
+                  }}
+                  style={{ width: 56, height: 36, borderRadius: 8, border: '1px solid #d6336c', background: '#fff0f6', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 6 }}
+                  aria-label="Επόμενη διαθέσιμη ώρα"
+                >
+                  <IconChevronDown size={18} color="#d6336c" />
+                </button>
+              </div>
+            </div>
             
             <Text ta="center" c="dimmed" size="lg" fw={500}>
-              {employee?.name} • {hour}
+              {employee?.name} • {form.time || hour}
             </Text>
-            {/* Employee choice buttons for moving the appointment */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+            {/* Employee choice buttons for moving the appointment (edit-only) */}
+            {mode === 'edit' && (
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
                 {EMPLOYEES.map(emp => {
                 const active = form.assignedEmployee === emp.id;
                 return (
@@ -571,29 +694,34 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   </button>
                 );
               })}
-            </div>
-            {/* Time select (available slots for chosen employee) */}
-            <div style={{ marginTop: 8 }}>
-              <label htmlFor="timeSelect" style={{ display: 'block', fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center' }}>
-                Ώρα (επιλέξτε για αλλαγή)
-              </label>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <select
-                  id="timeSelect"
-                  value={form.time}
-                  onChange={e => {
-                    setForm(f => ({ ...f, time: e.target.value }));
-                    setFormError('');
-                  }}
-                  style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #d6336c', background: '#fff', textAlign: 'center', minWidth: 160 }}
-                >
-                  <option value="">(επιλέξτε ώρα)</option>
-                  {availableSlots.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
               </div>
-            </div>
+            )}
+            {/* Time select (available slots for chosen employee) - edit-only */}
+            {mode === 'edit' && (
+              <div style={{ marginTop: 8 }}>
+                <label htmlFor="timeSelect" style={{ display: 'block', fontWeight: 600, color: '#c2255c', marginBottom: 6, textAlign: 'center' }}>
+                  Ώρα (επιλέξτε για αλλαγή)
+                </label>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <select
+                      id="timeSelect"
+                      value={form.time}
+                      onChange={e => {
+                        setForm(f => ({ ...f, time: e.target.value }));
+                        setFormError('');
+                      }}
+                      style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #d6336c', background: '#fff', textAlign: 'center', minWidth: 160 }}
+                    >
+                      <option value="">(επιλέξτε ώρα)</option>
+                      {availableSlots.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
             <Text ta="center" c="dimmed" size="sm">
               {dayjs(date).format('dddd, DD MMM YYYY')}
             </Text>
