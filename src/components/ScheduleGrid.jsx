@@ -118,6 +118,14 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
       .sort((a,b) => a.start.localeCompare(b.start));
   }, [appointments, dateKey]);
 
+  // Helper: determine if an appointment should be considered 'paid'
+  const isAppointmentPaid = (appt) => {
+    if (!appt) return false;
+    const rawPrice = appt.price;
+    const parsed = parseFloat(rawPrice);
+    return rawPrice !== null && rawPrice !== undefined && rawPrice !== '' && (!isNaN(parsed) || String(rawPrice).trim().length > 0);
+  };
+
   // Phones that appear more than once (shared customers) for the day
   const sharedPhones = useMemo(()=>{
     const map = {};
@@ -403,10 +411,15 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                         sharedColor = isShared ? sharedColorCache[phoneKey] : null;
                       }
                       // Mark the whole table cell as paid only when the appointment has a numeric price
-                      const isPaid = !!startCell && (() => {
-                        const rawPrice = startCell.appt.price;
-                        return rawPrice !== null && rawPrice !== undefined && rawPrice !== '' && !isNaN(parseFloat(rawPrice));
-                      })();
+                      const isPaid = !!startCell && isAppointmentPaid(startCell.appt);
+                      if (process.env.NODE_ENV !== 'production' && startCell && startCell.appt) {
+                        try {
+                          const rawPrice = startCell.appt.price;
+                          if ((rawPrice !== null && rawPrice !== undefined && rawPrice !== '') && !isAppointmentPaid(startCell.appt)) {
+                            console.warn('[ScheduleGrid] price-present-but-not-paid', { id: startCell.appt.id, date: startCell.appt.date, time: startCell.appt.time, price: rawPrice, paymentType: startCell.appt.paymentType });
+                          }
+                        } catch(e) {}
+                      }
                       const apptCellClass = startCell && !isPaid ? styles.apptCellActive : '';
                       const sharedCellStyle = startCell && isShared ? { backgroundColor: sharedColor } : {};
                       const paidCellStyle = isPaid ? { backgroundColor: '#c7ccd4', borderRight: '1px solid rgba(0,0,0,0.16)', transition: 'background-color 120ms ease' } : {};
@@ -443,8 +456,27 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                               const status = startCell.appt.status || 'unconfirmed';
                               let statusStyle = {};
                               // Consider appointment paid only if it has a numeric price
-                              const rawPrice = startCell.appt.price;
-                              const isPaid = rawPrice !== null && rawPrice !== undefined && rawPrice !== '' && !isNaN(parseFloat(rawPrice));
+                              const isPaid = isAppointmentPaid(startCell.appt);
+                              if (process.env.NODE_ENV !== 'production' && startCell && startCell.appt) {
+                                try {
+                                  const rawPrice = startCell.appt.price;
+                                  if ((rawPrice !== null && rawPrice !== undefined && rawPrice !== '') && !isAppointmentPaid(startCell.appt)) {
+                                    console.warn('[ScheduleGrid] price-present-but-not-paid', { id: startCell.appt.id, date: startCell.appt.date, time: startCell.appt.time, price: rawPrice, paymentType: startCell.appt.paymentType });
+                                  }
+                                } catch(e) {}
+                              }
+                              if (process.env.NODE_ENV !== 'production') {
+                                try {
+                                  console.debug('[ScheduleGrid] appt-pay-check', {
+                                    id: startCell.appt.id,
+                                    date: startCell.appt.date,
+                                    time: startCell.appt.time,
+                                    price: startCell.appt.price,
+                                    paymentType: startCell.appt.paymentType,
+                                    isPaid
+                                  });
+                                } catch (e) { /* ignore */ }
+                              }
                               // Apply a stronger paid visual to the outer container (Paper)
                               const paidStyle = isPaid ? {
                                 backgroundColor: '#bfc7d0',

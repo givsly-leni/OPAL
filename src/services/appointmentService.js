@@ -51,7 +51,15 @@ export const getAppointments = async () => {
     const appointments = {};
     
     querySnapshot.forEach((doc) => {
-      const appointment = doc.data();
+      const raw = doc.data();
+      // normalize fields to stable shapes used by the UI
+      const appointment = {
+        ...raw,
+        date: raw.date ? String(raw.date) : undefined,
+        time: raw.time ? String(raw.time) : undefined,
+        paymentType: raw.paymentType || 'cash',
+        price: (raw.price !== undefined && raw.price !== null && raw.price !== '') ? (isNaN(Number(raw.price)) ? raw.price : Number(raw.price)) : null
+      };
       const dateKey = appointment.date;
       
       if (!appointments[dateKey]) {
@@ -88,7 +96,14 @@ export const subscribeToAppointments = (callback) => {
     const appointments = {};
     
     snapshot.forEach((doc) => {
-      const appointment = doc.data();
+      const raw = doc.data();
+      const appointment = {
+        ...raw,
+        date: raw.date ? String(raw.date) : undefined,
+        time: raw.time ? String(raw.time) : undefined,
+        paymentType: raw.paymentType || 'cash',
+        price: (raw.price !== undefined && raw.price !== null && raw.price !== '') ? (isNaN(Number(raw.price)) ? raw.price : Number(raw.price)) : null
+      };
       const dateKey = appointment.date;
       
       console.log('Processing appointment:', appointment);

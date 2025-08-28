@@ -335,9 +335,9 @@ export function AppointmentForm({ appointments, setAppointments }) {
       return;
     }
     
-    const dateKey = dayjs(date).format('YYYY-MM-DD');
-    // Final validation: assignedEmployee must be set
-    if (!form.assignedEmployee) { setFormError('Πρέπει να επιλέξετε εργαζόμενο'); return; }
+  const dateKey = dayjs(date).format('YYYY-MM-DD');
+  // Final validation: assignedEmployee must be set
+  if (!form.assignedEmployee) { setFormError('Πρέπει να επιλέξετε εργαζόμενο'); return; }
 
     // If we're editing and the user didn't change time but kept same employee, allow using original time
     let effectiveTime = form.time;
@@ -346,7 +346,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
     }
     if (!effectiveTime) { setFormError('Πρέπει να επιλέξετε ώρα'); return; }
 
-    // Defensive overlap check before saving — re-fetch latest appointments to avoid races
+  // Defensive overlap check before saving — re-fetch latest appointments to avoid races
     let dayApptsSrc = appointments;
     // attempt fetch with retries/backoff
     async function tryFetchWithRetry(attempts = 3) {
@@ -372,15 +372,29 @@ export function AppointmentForm({ appointments, setAppointments }) {
       // fallback to local in-memory appointments if fetch fails
       console.warn('Could not fetch latest appointments before save, using local state', err?.code || err?.message || err);
     }
-    const dayAppts = (dayApptsSrc?.[dateKey] || []).filter(a => a.employee === form.assignedEmployee && a.id !== form.id);
-    const chosenStart = dayjs(`${dateKey}T${effectiveTime}`);
-    const chosenEnd = chosenStart.add(parseInt(form.duration || 30, 10), 'minute');
-    const conflict = dayAppts.some(a => {
-      const aStart = dayjs(`${dateKey}T${a.time}`);
-      const aEnd = aStart.add(parseInt(a.duration || 30, 10), 'minute');
-      return chosenStart.isBefore(aEnd) && aStart.isBefore(chosenEnd);
-    });
-    if (conflict) { setFormError('Η επιλεγμένη ώρα επικαλύπτει υπάρχον ραντεβού'); return; }
+
+    // Build exclusion set for the appointment(s) being edited
+    const excludeSet = new Set();
+    if (form.id !== undefined && form.id !== null) excludeSet.add(String(form.id));
+    if (originalApptRef.current && originalApptRef.current.id !== undefined && originalApptRef.current.id !== null) excludeSet.add(String(originalApptRef.current.id));
+
+    // Determine if we're moving the appointment. If editing and neither employee nor time changed,
+    // skip the overlap check (we're only updating fields like price/notes).
+    const original = originalApptRef.current;
+    const isEdit = mode === 'edit' && original;
+    const moving = !isEdit || (String(form.assignedEmployee) !== String(original?.employee) || (effectiveTime !== original?.time));
+
+    if (moving) {
+      const dayAppts = (dayApptsSrc?.[dateKey] || []).filter(a => a.employee === form.assignedEmployee && !excludeSet.has(String(a.id)));
+      const chosenStart = dayjs(`${dateKey}T${effectiveTime}`);
+      const chosenEnd = chosenStart.add(parseInt(form.duration || 30, 10), 'minute');
+      const conflict = dayAppts.some(a => {
+        const aStart = dayjs(`${dateKey}T${a.time}`);
+        const aEnd = aStart.add(parseInt(a.duration || 30, 10), 'minute');
+        return chosenStart.isBefore(aEnd) && aStart.isBefore(chosenEnd);
+      });
+      if (conflict) { setFormError('Η επιλεγμένη ώρα επικαλύπτει υπάρχον ραντεβού'); return; }
+    }
 
     const appointmentData = {
       id: form.id,
@@ -406,8 +420,24 @@ export function AppointmentForm({ appointments, setAppointments }) {
 
     try {
       // Save to Firebase
-      await saveAppointment(appointmentData);
+      const savedId = await saveAppointment(appointmentData);
+      // ensure appointmentData has the final id returned by the service
+      appointmentData.id = savedId || appointmentData.id;
       backupAppointment('save', appointmentData);
+      // Update local in-memory state immediately so UI reflects new price/payment
+      try {
+        setAppointments(prev => {
+          const next = { ...(prev || {}) };
+          const list = Array.isArray(next[dateKey]) ? next[dateKey].slice() : [];
+          // remove any existing instance of this id
+          const filtered = list.filter(a => String(a.id) !== String(appointmentData.id));
+          filtered.push(appointmentData);
+          next[dateKey] = filtered.sort((a,b)=> (a.time||'').localeCompare(b.time||''));
+          return next;
+        });
+      } catch (err) {
+        console.warn('Local appointments update failed (non-blocking):', err);
+      }
       console.log('Appointment saved to Firebase:', appointmentData);
 
       // Upsert customer profile (fire and forget intentionally after appointment save)
