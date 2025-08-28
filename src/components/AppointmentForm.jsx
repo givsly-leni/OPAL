@@ -219,24 +219,20 @@ export function AppointmentForm({ appointments, setAppointments }) {
     let free = hardEnd.diff(startMoment,'minute');
     if(free < 0) free = 0;
 
-    // If there are no computed available slots for this duration, surface a helpful message
-    try {
-      if (Array.isArray(availableSlots) && assigned) {
-        if ((availableSlots.length === 0) && (needed > 0)) {
-          setScheduleError('Δεν υπάρχουν διαθέσιμες ώρες για αυτή τη διάρκεια');
-          return;
-        }
-        if (effectiveSelTime && availableSlots.length > 0 && availableSlots.indexOf(effectiveSelTime) === -1) {
-          setScheduleError('Η επιλεγμένη ώρα δεν χωρά αυτή τη διάρκεια');
-          return;
-        }
+    // If there is an effective selected time, prefer precise free-minute checks
+    if (effectiveSelTime) {
+      if (needed && needed > free) {
+        setScheduleError('Η διάρκεια είναι εκτός ορίων εργαζόμενου');
+        return;
       }
-    } catch(e) {
-      // ignore; fallthrough to original logic
+      // selected time fits
+      setScheduleError('');
+      return;
     }
 
-    if(needed && needed > free){
-      setScheduleError('Η διάρκεια είναι εκτός ορίων εργαζομένου');
+    // No selected time: show message if computeAvailableSlots found none for this duration
+    if (needed > 0 && Array.isArray(availableSlots) && availableSlots.length === 0) {
+      setScheduleError('Δεν υπάρχουν διαθέσιμες ώρες για αυτή τη διάρκεια');
       return;
     }
     // if we reached here, all checks passed; clear scheduleError
