@@ -41,6 +41,29 @@ export async function loadWaitlistForDate(dateStr){
   }
 }
 
+// Load all waitlist entries across all dates. Falls back to localStorage on error.
+export async function loadAllWaitlist(){
+  try{
+    const colRef = collection(db, COLLECTION_NAME);
+    // order by createdAt if available
+    const q = query(colRef, orderBy('createdAt'));
+    const snap = await getDocs(q);
+    const results = [];
+    snap.forEach(d => results.push({ id: d.id, ...d.data() }));
+    results.sort((a,b)=> (a.createdAt || '') > (b.createdAt || '') ? 1 : -1);
+    return results;
+  }catch(err){
+    // fallback: flatten local store
+    const store = readStore();
+    const all = [];
+    for(const d of Object.keys(store)){
+      (store[d] || []).forEach(x => all.push(x));
+    }
+    all.sort((a,b)=> (a.createdAt || '') > (b.createdAt || '') ? 1 : -1);
+    return all;
+  }
+}
+
 // Add waiting entry. Also try to upsert customer record for quick retrieval later.
 export async function addWaiting(dateStr, entry){
   const payload = {
@@ -78,8 +101,15 @@ export async function removeWaiting(dateStr, id){
     // fallback: remove from localstore
     try{
       const store = readStore();
-      const list = store[dateStr] || [];
-      store[dateStr] = list.filter(x=>x.id !== id);
+      if(dateStr){
+        const list = store[dateStr] || [];
+        store[dateStr] = list.filter(x=>x.id !== id);
+      } else {
+        // remove from any date bucket that contains it
+        for(const d of Object.keys(store)){
+          store[d] = (store[d] || []).filter(x=>x.id !== id);
+        }
+      }
       writeStore(store);
       return true;
     }catch(e){
@@ -144,4 +174,4 @@ export async function suggestCustomersByPhone(prefix, max=6){
 
 export function clearAll(){ writeStore({}); }
 
-export default { loadWaitlistForDate, addWaiting, removeWaiting, clearAll, suggestCustomersByName, suggestCustomersByPhone };
+export default { loadWaitlistForDate, loadAllWaitlist, addWaiting, removeWaiting, clearAll, suggestCustomersByName, suggestCustomersByPhone, getWaitingById, updateWaiting };

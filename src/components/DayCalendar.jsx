@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/el';
 dayjs.locale('el');
 import { BUSINESS_HOURS } from './ScheduleGrid';
-import { loadWaitlistForDate, removeWaiting } from '../services/waitlistService';
+import { loadAllWaitlist, removeWaiting } from '../services/waitlistService';
 import { purgeAppointmentsBefore } from '../services/appointmentService';
 import { IconPlus, IconX } from '@tabler/icons-react';
 
@@ -28,20 +28,21 @@ export function DayCalendar() {
     } else {
       navigate(`/appointment?date=${dayjs(val).format('YYYY-MM-DD')}`);
     }
-    // load waitlist for newly selected date (async)
+    // when date picked we still navigate to appointments, but keep the global waitlist view
     (async ()=>{
-      const arr = await loadWaitlistForDate(dayjs(val).format('YYYY-MM-DD'));
+      const arr = await loadAllWaitlist();
       setWaitlist(arr);
     })();
   }
 
   // ensure waitlist updates when `date` changes
+  // load full waitlist once and whenever component mounts
   useEffect(() => {
     (async ()=>{
-      const arr = await loadWaitlistForDate(dayjs(date).format('YYYY-MM-DD'));
+      const arr = await loadAllWaitlist();
       setWaitlist(arr);
     })();
-  }, [date]);
+  }, []);
 
   // Responsive: stack waitlist under calendar on narrow screens (phone)
   useEffect(()=>{
@@ -214,9 +215,22 @@ export function DayCalendar() {
                 <Title order={4} style={{ margin: 0, fontSize: '1rem' }}>Αναμονές</Title>
                 <Text size="xs" c="dimmed">Για πελάτισσες χωρίς διαθέσιμο ραντεβού</Text>
               </div>
-              <Button size="xs" onClick={() => navigate(`/waitlist?date=${dayjs(date).format('YYYY-MM-DD')}`)}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><IconPlus size={14}/>Προσθήκη</span>
-              </Button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button size="xs" onClick={() => navigate(`/waitlist`)}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><IconPlus size={14}/>Προσθήκη</span>
+                </Button>
+                <Button size="xs" color="gray" variant="subtle" onClick={async () => {
+                  try{
+                    const arr = await loadAllWaitlist();
+                    setWaitlist(arr || []);
+                    console.log('Reloaded full waitlist', arr);
+                    alert(`Ανανεώθηκαν ${arr?.length || 0} εγγραφές αναμονής`);
+                  }catch(e){
+                    console.error('Failed to reload waitlist', e);
+                    alert('Αποτυχία ανανέωσης αναμονών — δείτε την κονσόλα');
+                  }
+                }}>Ανανέωση</Button>
+              </div>
             </div>
           </Paper>
           <div style={{ maxHeight: 420, overflowY: 'auto', width: '100%' }}>
@@ -233,7 +247,7 @@ export function DayCalendar() {
                         {w.prefs ? <div style={{ fontSize: 12, color: '#444', marginTop: 6 }}>{w.prefs}</div> : null}
                       </div>
                       <div style={{ marginLeft: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <Button size="xs" color="gray" variant="subtle" onClick={() => navigate(`/waitlist?date=${dayjs(date).format('YYYY-MM-DD')}&id=${w.id}`)}>
+                        <Button size="xs" color="gray" variant="subtle" onClick={() => navigate(`/waitlist?id=${w.id}`)}>
                           Επεξεργ.
                         </Button>
                         <Button size="xs" color="red" variant="subtle" onClick={() => setConfirmDelete({ open: true, id: w.id, name: w.name || '' })}>
@@ -272,9 +286,9 @@ export function DayCalendar() {
                 <Button variant="outline" onClick={() => setConfirmDelete({ open: false, id: null, name: '' })}>Άκυρο</Button>
                 <Button color="red" onClick={async () => {
                   try{
-                    const ok = await removeWaiting(dayjs(date).format('YYYY-MM-DD'), confirmDelete.id);
+                    const ok = await removeWaiting(/* dateStr not required for server delete */ null, confirmDelete.id);
                     if(ok === false) throw new Error('remove failed');
-                    const arr = await loadWaitlistForDate(dayjs(date).format('YYYY-MM-DD'));
+                    const arr = await loadAllWaitlist();
                     setWaitlist(arr);
                   }catch(err){
                     console.error('Failed to delete waiting', err);
