@@ -323,8 +323,8 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
         padding: '0 8px',
         boxSizing: 'border-box',
         WebkitTapHighlightColor: 'transparent',
-  touchAction: 'manipulation',
-  userSelect: 'auto'
+        touchAction: 'manipulation',
+        userSelect: 'auto'
       }}
     >
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', width: '100%', marginTop: -8, marginBottom: 6, overflowX: 'auto', padding: '6px 4px', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>

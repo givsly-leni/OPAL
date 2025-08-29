@@ -657,47 +657,100 @@ export function AppointmentForm({ appointments, setAppointments }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <button
                   type="button"
-                  title="Προηγούμενη διαθέσιμη"
+                  title="Προηγούμενη ραντεβού της ημέρας"
                   onClick={() => {
-                    if (!availableSlots || availableSlots.length === 0) return;
-                    const current = form.time || hour || '';
-                    let idx = availableSlots.indexOf(current);
+                    // Load the previous appointment (any employee) for the same date and populate the form
+                    const dateKey = dayjs(date).format('YYYY-MM-DD');
+                    const dayAppts = (appointments?.[dateKey] || []).slice().sort((a,b)=> (a.time||'').localeCompare(b.time||''));
+                    if (!dayAppts || dayAppts.length === 0) return;
+                    const currentId = form.id || (originalApptRef.current && originalApptRef.current.id) || null;
+                    const currentTime = form.time || hour || (originalApptRef.current ? originalApptRef.current.time : '');
+                    // find index by id first, then by time
+                    let idx = -1;
+                    if (currentId) idx = dayAppts.findIndex(a => String(a.id) === String(currentId));
+                    if (idx === -1) idx = dayAppts.findIndex(a => a.time === currentTime);
                     if (idx === -1) {
-                      idx = availableSlots.findIndex(s => s > current);
-                      if (idx === -1) idx = availableSlots.length;
+                      idx = dayAppts.findIndex(a => a.time > currentTime);
+                      if (idx === -1) idx = dayAppts.length;
                     }
                     const prevIdx = idx - 1;
                     if (prevIdx >= 0) {
-                      const v = availableSlots[prevIdx];
-                      setForm(f => ({ ...f, time: v }));
+                      const target = dayAppts[prevIdx];
+                      // populate full form with target appointment
+                      originalApptRef.current = target;
+                      setForm({
+                        id: target.id,
+                        client: target.client || '',
+                        phone: target.phone || '',
+                        description: target.description || '',
+                        clientInfo: target.clientInfo || target.customerInfo || '',
+                        price: target.price || '',
+                        paymentType: target.paymentType || 'cash',
+                        durationSelect: String(target.duration || 30),
+                        duration: target.duration || 30,
+                        assignedEmployee: target.employee || '',
+                        employeeSelect: target.displayEmployee || '',
+                        employeeExplicit: target.employeeExplicit || false,
+                        time: target.time || ''
+                      });
                       setFormError('');
                     }
                   }}
                   style={{ width: 56, height: 36, borderRadius: 8, border: '1px solid #d6336c', background: '#fff0f6', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 6 }}
-                  aria-label="Προηγούμενη διαθέσιμη ώρα"
+                  aria-label="Προηγούμενη ραντεβού"
                 >
                   <IconChevronUp size={18} color="#d6336c" />
                 </button>
                 <button
                   type="button"
-                  title="Επόμενη διαθέσιμη"
+                  title="Επόμενη ραντεβού της ημέρας"
                   onClick={() => {
-                    if (!availableSlots || availableSlots.length === 0) return;
-                    const current = form.time || hour || '';
-                    let idx = availableSlots.indexOf(current);
+                    // Load the next appointment (any employee) for the same date and populate the form
+                    const dateKey = dayjs(date).format('YYYY-MM-DD');
+                    const dayAppts = (appointments?.[dateKey] || []).slice().sort((a,b)=> (a.time||'').localeCompare(b.time||''));
+                    if (!dayAppts || dayAppts.length === 0) return;
+                    const currentId = form.id || (originalApptRef.current && originalApptRef.current.id) || null;
+                    const currentTime = form.time || hour || (originalApptRef.current ? originalApptRef.current.time : '');
+                    let idx = -1;
+                    if (currentId) idx = dayAppts.findIndex(a => String(a.id) === String(currentId));
+                    if (idx === -1) idx = dayAppts.findIndex(a => a.time === currentTime);
                     if (idx === -1) {
-                      idx = availableSlots.findIndex(s => s > current);
-                      if (idx === -1) idx = availableSlots.length;
+                      idx = dayAppts.findIndex(a => a.time > currentTime);
+                      if (idx === -1) idx = dayAppts.length;
                     }
-                    const nextIdx = idx === -1 ? 0 : idx + (availableSlots[idx] === current ? 1 : 0);
-                    if (nextIdx < availableSlots.length) {
-                      const v = availableSlots[nextIdx];
-                      setForm(f => ({ ...f, time: v }));
-                      setFormError('');
+                    // decide target index
+                    let nextIdx;
+                    if (idx === dayAppts.length) {
+                      // no later appointment
+                      return;
                     }
+                    if (idx !== -1 && dayAppts[idx] && (String(dayAppts[idx].id) === String(currentId) || dayAppts[idx].time === currentTime)) {
+                      nextIdx = idx + 1;
+                    } else {
+                      nextIdx = idx;
+                    }
+                    if (nextIdx < 0 || nextIdx >= dayAppts.length) return;
+                    const target = dayAppts[nextIdx];
+                    originalApptRef.current = target;
+                    setForm({
+                      id: target.id,
+                      client: target.client || '',
+                      phone: target.phone || '',
+                      description: target.description || '',
+                      clientInfo: target.clientInfo || target.customerInfo || '',
+                      price: target.price || '',
+                      paymentType: target.paymentType || 'cash',
+                      durationSelect: String(target.duration || 30),
+                      duration: target.duration || 30,
+                      assignedEmployee: target.employee || '',
+                      employeeSelect: target.displayEmployee || '',
+                      employeeExplicit: target.employeeExplicit || false,
+                      time: target.time || ''
+                    });
+                    setFormError('');
                   }}
                   style={{ width: 56, height: 36, borderRadius: 8, border: '1px solid #d6336c', background: '#fff0f6', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 6 }}
-                  aria-label="Επόμενη διαθέσιμη ώρα"
+                  aria-label="Επόμενη ραντεβού"
                 >
                   <IconChevronDown size={18} color="#d6336c" />
                 </button>
@@ -802,7 +855,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
               style={{ position:'absolute', top:'100%', left:'50%', transform:'translateX(-50%)', width:'100%', zIndex:31, marginTop:4, maxHeight:180, overflowY:'auto', background:'#fff', border:'2px solid #e86aa6', boxShadow:'0 6px 18px -4px rgba(214,51,108,0.35)' }}
             >
               <Stack gap={4} style={{ width:'100%' }}>
-        {nameSuggestions.map(cust => (
+                {nameSuggestions.map(cust => (
                   <Button
                     key={cust.id+cust.phone}
                     variant="subtle"

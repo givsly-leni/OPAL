@@ -48,12 +48,41 @@ export const EMPLOYEE_SCHEDULE_HISTORY = {
   ]
 };
 
+// Per-date schedule overrides for special days. Keyed by 'YYYY-MM-DD'.
+// Use sparingly for one-off schedule changes so we don't alter history or defaults.
+export const EMPLOYEE_SCHEDULE_OVERRIDES = {
+  // Make Emmanouela work on Tuesday 2025-09-23 from 16:00 to 21:00 (one-off)
+  '2025-09-23': {
+    emmanouela: {
+      2: [['16:00','21:00']]
+    }
+  }
+};
+
+// Mark Emmanouela off for 2025-09-25 through 2025-09-30 (inclusive)
+['2025-09-25','2025-09-26','2025-09-27','2025-09-28','2025-09-29','2025-09-30'].forEach(d => {
+  EMPLOYEE_SCHEDULE_OVERRIDES[d] = { ...(EMPLOYEE_SCHEDULE_OVERRIDES[d] || {}), emmanouela: null };
+});
+
 // Return the schedule ranges for employeeId on the given date (array of [start,end] or undefined/null)
 export function getEmployeeScheduleForDate(employeeId, date) {
   if (!employeeId) return null;
   const day = dayjs(date);
   if (!day.isValid()) return null;
   const dayNum = day.day();
+  const dateStr = day.format('YYYY-MM-DD');
+
+  // Check per-date overrides first (highest precedence)
+  try{
+    const overridesForDate = EMPLOYEE_SCHEDULE_OVERRIDES[dateStr];
+    if (overridesForDate && Object.prototype.hasOwnProperty.call(overridesForDate, employeeId)) {
+      const empOverride = overridesForDate[employeeId];
+      // empOverride may be null (explicit day off) or an object mapping weekday->ranges
+      if (empOverride === null) return null;
+      if (empOverride && empOverride[dayNum] !== undefined) return empOverride[dayNum] || null;
+      return null;
+    }
+  }catch(e){ /* ignore and continue to history/fallback */ }
 
   // Check history first
   const history = EMPLOYEE_SCHEDULE_HISTORY[employeeId];
