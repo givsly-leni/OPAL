@@ -142,6 +142,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
   const employeeId = searchParams.get('employee');
   const hour = searchParams.get('hour');
   const mode = searchParams.get('mode') || 'new';
+  const paramId = searchParams.get('id');
   
   const date = dateStr ? new Date(dateStr) : new Date();
   const hours = generateHoursForDate(date);
@@ -291,41 +292,55 @@ export function AppointmentForm({ appointments, setAppointments }) {
 
   // Load existing appointment data when in edit mode
   useEffect(() => {
-  if (mode === 'edit' && appointments && dateStr && employeeId && hour) {
-      const dateKey = dayjs(dateStr).format('YYYY-MM-DD');
-      const dayAppointments = appointments[dateKey] || [];
-      const existingAppointment = dayAppointments.find(apt => 
-    apt.employee === employeeId && apt.time === hour
-      );
-      
-  // Avoid dumping the full appointments object to console (can be large).
-  const totalDates = Object.keys(appointments || {}).length;
-  const totalAppts = Object.keys(appointments || {}).reduce((sum, k) => sum + ((appointments[k]||[]).length || 0), 0);
-  if (DEBUG_APPTS) console.log(`Loading edit data for ${dateKey} ${employeeId} ${hour} — ${totalAppts} total appointments across ${totalDates} date(s)`);
-      
-  if (existingAppointment) {
-        const duration = existingAppointment.duration || 30;
-        
-  setForm({
-          id: existingAppointment.id,
-          client: existingAppointment.client || '',
-          phone: existingAppointment.phone || '',
-          description: existingAppointment.description || '',
-          clientInfo: existingAppointment.clientInfo || existingAppointment.customerInfo || '',
-          price: existingAppointment.price || '',
-          paymentType: existingAppointment.paymentType || 'cash',
-          durationSelect: '30',
-          duration: duration,
-      assignedEmployee: existingAppointment.employee || employeeId || '',
-      employeeSelect: existingAppointment.displayEmployee || '',
-      employeeExplicit: existingAppointment.employeeExplicit || false,
-      time: existingAppointment.time || hour || ''
-  });
-  // keep a reference to the original appointment for edit logic
-  originalApptRef.current = existingAppointment;
+    if (mode !== 'edit' || !appointments || !dateStr) return;
+    const dateKey = dayjs(dateStr).format('YYYY-MM-DD');
+    const dayAppointments = appointments[dateKey] || [];
+
+    // Try primary lookup by employee+hour first (old behavior)
+    let existingAppointment = null;
+    if (employeeId && hour) {
+      existingAppointment = dayAppointments.find(apt => apt.employee === employeeId && apt.time === hour);
+    }
+
+    // If not found and an id param exists, try lookup by id
+    if (!existingAppointment && paramId) {
+      existingAppointment = dayAppointments.find(apt => String(apt.id) === String(paramId)) || null;
+    }
+
+    // As a last resort, if still not found and there's only one matching id across all dates, try global search
+    if (!existingAppointment && paramId) {
+      for (const k of Object.keys(appointments || {})) {
+        const found = (appointments[k] || []).find(apt => String(apt.id) === String(paramId));
+        if (found) { existingAppointment = found; break; }
       }
     }
-  }, [mode, appointments, dateStr, employeeId, hour]);
+
+    // Avoid dumping the full appointments object to console (can be large).
+    const totalDates = Object.keys(appointments || {}).length;
+    const totalAppts = Object.keys(appointments || {}).reduce((sum, k) => sum + ((appointments[k]||[]).length || 0), 0);
+    if (DEBUG_APPTS) console.log(`Loading edit data for ${dateKey} ${employeeId || ''} ${hour || ''} id=${paramId || ''} — ${totalAppts} total appointments across ${totalDates} date(s)`);
+
+    if (existingAppointment) {
+      const duration = existingAppointment.duration || 30;
+      setForm({
+        id: existingAppointment.id,
+        client: existingAppointment.client || '',
+        phone: existingAppointment.phone || '',
+        description: existingAppointment.description || '',
+        clientInfo: existingAppointment.clientInfo || existingAppointment.customerInfo || '',
+        price: existingAppointment.price || '',
+        paymentType: existingAppointment.paymentType || 'cash',
+        durationSelect: '30',
+        duration: duration,
+        assignedEmployee: existingAppointment.employee || employeeId || '',
+        employeeSelect: existingAppointment.displayEmployee || '',
+        employeeExplicit: existingAppointment.employeeExplicit || false,
+        time: existingAppointment.time || hour || ''
+      });
+      // keep a reference to the original appointment for edit logic
+      originalApptRef.current = existingAppointment;
+    }
+  }, [mode, appointments, dateStr, employeeId, hour, paramId]);
 
   async function handleSave(e) {
     e.preventDefault();

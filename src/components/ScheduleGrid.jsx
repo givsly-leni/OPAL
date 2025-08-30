@@ -235,8 +235,9 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
   function openNew(employeeId, slot) {
     navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=new`);
   }
-  function openEdit(employeeId, slot) {
-    navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=edit`);
+  function openEdit(employeeId, slot, apptId) {
+    const base = `/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=edit`;
+    navigate(apptId ? `${base}&id=${encodeURIComponent(apptId)}` : base);
   }
   function openDelete(employeeId, slot){ 
     const cell = coverageMap[employeeId]?.[slot];
@@ -528,7 +529,7 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                                         variant="filled"
                                         radius="sm"
                                         className={styles.apptBadge}
-                                        onClick={()=>openEdit(e.id,slot)}
+                                        onClick={()=>openEdit(e.id,slot,startCell.appt && startCell.appt.id)}
                                         title={`${fullName}${firstDescWord? ' • '+firstDescWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
                                             style={{
                                             fontSize: 'clamp(10px, 2vw, 13px)',
