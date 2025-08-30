@@ -54,7 +54,7 @@ export const EMPLOYEE_SCHEDULE_OVERRIDES = {
   // Make Emmanouela work on Tuesday 2025-09-23 from 16:00 to 21:00 (one-off)
   '2025-09-23': {
     emmanouela: {
-      2: [['16:00','21:00']]
+      2: [['15:00','21:00']]
     }
   }
 };
