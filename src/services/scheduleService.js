@@ -57,6 +57,22 @@ export const EMPLOYEE_SCHEDULE_OVERRIDES = {
       2: [['15:00','21:00']]
     }
   }
+  ,
+  // Wednesday 2025-09-24: Emmanouela 09:00-13:00, Hliana 13:00-21:00 (one-off)
+  '2025-09-24': {
+    emmanouela: {
+      3: [['09:00','13:00']]
+    },
+    hliana: {
+      3: [['13:00','21:00']]
+    }
+  },
+  // Friday 2025-09-26: Hliana 10:00-18:00 (one-off)
+  '2025-09-26': {
+    hliana: {
+      5: [['10:00','18:00']]
+    }
+  }
 };
 
 // Mark Emmanouela off for 2025-09-25 through 2025-09-30 (inclusive)
