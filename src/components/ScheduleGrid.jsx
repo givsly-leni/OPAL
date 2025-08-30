@@ -238,8 +238,13 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
     navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=new`);
   }
   function openEdit(employeeId, slot, apptId) {
-    const base = `/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=edit`;
-    navigate(apptId ? `${base}&id=${encodeURIComponent(apptId)}` : base);
+    if (apptId) {
+      // canonical: open by id only
+      navigate(`/appointment-form?id=${encodeURIComponent(apptId)}&mode=edit`);
+    } else {
+      // fallback to legacy route when id is not available
+      navigate(`/appointment-form?date=${dayjs(date).format('YYYY-MM-DD')}&employee=${employeeId}&hour=${slot}&mode=edit`);
+    }
   }
   function openDelete(employeeId, slot){ 
     const cell = coverageMap[employeeId]?.[slot];

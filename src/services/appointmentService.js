@@ -27,36 +27,69 @@ const DEBUG_APPTS = (() => {
 
 // Save appointment to Firebase
 export const saveAppointment = async (appointment) => {
-  try {
-    const isUpdate = !!appointment.id;
-  // Log a brief action summary (avoid printing full objects)
-  if (DEBUG_APPTS) console.log(isUpdate ? `Updating appointment: id=${appointment.id}` : 'Creating new appointment');
+  const MAX_ATTEMPTS = 3;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const isUpdate = !!appointment.id;
+      // Log a brief action summary (avoid printing full objects)
+      if (DEBUG_APPTS) console.log(isUpdate ? `Updating appointment: id=${appointment.id}` : 'Creating new appointment');
 
-    // Reuse provided id when updating; otherwise generate new one
-    const appointmentId = isUpdate 
-      ? appointment.id 
-      : `${appointment.date}_${appointment.employee}_${appointment.time}_${Date.now()}`;
+      // Reuse provided id when updating; otherwise generate new one
+      const appointmentId = isUpdate
+        ? appointment.id
+        : `${appointment.date}_${appointment.employee}_${appointment.time}_${Date.now()}`;
 
-    const baseTimestamps = isUpdate
-      ? { updatedAt: new Date().toISOString() }
-      : { createdAt: new Date().toISOString() };
+      const baseTimestamps = isUpdate
+        ? { updatedAt: new Date().toISOString() }
+        : { createdAt: new Date().toISOString() };
 
-    const appointmentData = {
-      ...appointment,
-      id: appointmentId,
-      ...baseTimestamps
-    };
+      const appointmentData = {
+        ...appointment,
+        id: appointmentId,
+        ...baseTimestamps
+      };
 
-  if (DEBUG_APPTS) console.log(`Saving appointment id=${appointmentId} (update=${isUpdate})`);
+      if (DEBUG_APPTS) console.log(`Saving appointment id=${appointmentId} (update=${isUpdate}) attempt=${attempt}`);
 
-    // merge so we don't accidentally wipe fields if we pass partial data
-    await setDoc(doc(db, COLLECTION_NAME, appointmentId), appointmentData, { merge: true });
-  if (DEBUG_APPTS) console.log(`Appointment saved: id=${appointmentData.id} date=${appointmentData.date} time=${appointmentData.time}`);
-    return appointmentId;
-  } catch (error) {
-    console.error('Error saving appointment to Firebase:', error);
-    console.error('Error details:', error.message, error.code);
-    throw error;
+      // If creating a new appointment (no id provided), ensure no existing appointment
+      // occupies the same date/employee/time to avoid duplicates.
+      if (!isUpdate) {
+        try {
+          const q = query(collection(db, COLLECTION_NAME), where('date', '==', appointment.date), where('employee', '==', appointment.employee), where('time', '==', appointment.time));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            // return conflict information to caller
+            const existingId = snap.docs[0].id;
+            const err = new Error('Slot conflict: existing appointment at same date/employee/time');
+            err.code = 'SLOT_CONFLICT';
+            err.existingId = existingId;
+            throw err;
+          }
+        } catch (qerr) {
+          // if it's our conflict error bubble it up, otherwise continue to attempt saving
+          if (qerr && qerr.code === 'SLOT_CONFLICT') throw qerr;
+          // otherwise, ignore and proceed — rare query failure will be caught by setDoc below and retried
+        }
+      }
+
+      // merge so we don't accidentally wipe fields if we pass partial data
+      await setDoc(doc(db, COLLECTION_NAME, appointmentId), appointmentData, { merge: true });
+      if (DEBUG_APPTS) console.log(`Appointment saved: id=${appointmentData.id} date=${appointmentData.date} time=${appointmentData.time}`);
+      return appointmentId;
+    } catch (error) {
+      lastErr = error;
+      // small backoff for transient errors
+      const isLast = attempt === MAX_ATTEMPTS;
+      console.warn(`saveAppointment attempt ${attempt} failed:`, error?.code || error?.message || error);
+      if (isLast) {
+        console.error('Error saving appointment to Firebase after retries:', lastErr);
+        throw lastErr;
+      }
+      // exponential backoff
+      const delay = 150 * Math.pow(2, attempt - 1);
+      await new Promise(r => setTimeout(r, delay));
+    }
   }
 };
 
@@ -68,16 +101,17 @@ export const getAppointments = async () => {
     
     querySnapshot.forEach((doc) => {
       const raw = doc.data();
-      // normalize fields to stable shapes used by the UI
+      // normalize fields to stable shapes used by the UI, prefer stored id but fall back to Firestore doc id
       const appointment = {
         ...raw,
+        id: raw.id || doc.id,
         date: raw.date ? String(raw.date) : undefined,
         time: raw.time ? String(raw.time) : undefined,
         paymentType: raw.paymentType || 'cash',
         price: (raw.price !== undefined && raw.price !== null && raw.price !== '') ? (isNaN(Number(raw.price)) ? raw.price : Number(raw.price)) : null
       };
       const dateKey = appointment.date;
-      
+
       if (!appointments[dateKey]) {
         appointments[dateKey] = [];
       }
@@ -179,6 +213,7 @@ export const subscribeToAppointments = (callback) => {
         const raw = doc.data();
         const appointment = {
           ...raw,
+          id: raw.id || doc.id,
           date: raw.date ? String(raw.date) : undefined,
           time: raw.time ? String(raw.time) : undefined,
           paymentType: raw.paymentType || 'cash',

@@ -177,7 +177,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
 
 
-  const employee = EMPLOYEES.find(e => e.id === employeeId);
+  // Prefer the actual assigned employee from the loaded form when available
+  const employee = EMPLOYEES.find(e => e.id === (form?.assignedEmployee || employeeId));
 
   const [availableSlots, setAvailableSlots] = useState([]);
   const originalApptRef = useRef(null);
@@ -292,55 +293,64 @@ export function AppointmentForm({ appointments, setAppointments }) {
 
   // Load existing appointment data when in edit mode
   useEffect(() => {
-    if (mode !== 'edit' || !appointments || !dateStr) return;
-    const dateKey = dayjs(dateStr).format('YYYY-MM-DD');
-    const dayAppointments = appointments[dateKey] || [];
+    if (mode !== 'edit' || !appointments || (!dateStr && !paramId)) return;
 
-    // Try primary lookup by employee+hour first (old behavior)
-    let existingAppointment = null;
-    if (employeeId && hour) {
-      existingAppointment = dayAppointments.find(apt => apt.employee === employeeId && apt.time === hour);
-    }
-
-    // If not found and an id param exists, try lookup by id
-    if (!existingAppointment && paramId) {
-      existingAppointment = dayAppointments.find(apt => String(apt.id) === String(paramId)) || null;
-    }
-
-    // As a last resort, if still not found and there's only one matching id across all dates, try global search
-    if (!existingAppointment && paramId) {
+    // Helper to find appointment by id across all loaded dates
+    const findByIdGlobal = (id) => {
       for (const k of Object.keys(appointments || {})) {
-        const found = (appointments[k] || []).find(apt => String(apt.id) === String(paramId));
-        if (found) { existingAppointment = found; break; }
+        const found = (appointments[k] || []).find(apt => String(apt.id) === String(id));
+        if (found) return found;
       }
+      return null;
+    };
+
+    let existingAppointment = null;
+
+    if (paramId) {
+      // prefer id lookup when provided
+      if (dateStr) {
+        const dateKey = dayjs(dateStr).format('YYYY-MM-DD');
+        existingAppointment = (appointments[dateKey] || []).find(apt => String(apt.id) === String(paramId)) || null;
+      }
+      if (!existingAppointment) existingAppointment = findByIdGlobal(paramId);
     }
 
-    // Avoid dumping the full appointments object to console (can be large).
-    const totalDates = Object.keys(appointments || {}).length;
-    const totalAppts = Object.keys(appointments || {}).reduce((sum, k) => sum + ((appointments[k]||[]).length || 0), 0);
-    if (DEBUG_APPTS) console.log(`Loading edit data for ${dateKey} ${employeeId || ''} ${hour || ''} id=${paramId || ''} — ${totalAppts} total appointments across ${totalDates} date(s)`);
-
-    if (existingAppointment) {
-      const duration = existingAppointment.duration || 30;
-      setForm({
-        id: existingAppointment.id,
-        client: existingAppointment.client || '',
-        phone: existingAppointment.phone || '',
-        description: existingAppointment.description || '',
-        clientInfo: existingAppointment.clientInfo || existingAppointment.customerInfo || '',
-        price: existingAppointment.price || '',
-        paymentType: existingAppointment.paymentType || 'cash',
-        durationSelect: '30',
-        duration: duration,
-        assignedEmployee: existingAppointment.employee || employeeId || '',
-        employeeSelect: existingAppointment.displayEmployee || '',
-        employeeExplicit: existingAppointment.employeeExplicit || false,
-        time: existingAppointment.time || hour || ''
-      });
-      // keep a reference to the original appointment for edit logic
-      originalApptRef.current = existingAppointment;
+    // If not found by id, fall back to employee+hour lookup (legacy)
+    if (!existingAppointment && dateStr && employeeId && hour) {
+      const dateKey = dayjs(dateStr).format('YYYY-MM-DD');
+      const dayAppointments = appointments[dateKey] || [];
+      existingAppointment = dayAppointments.find(apt => apt.employee === employeeId && apt.time === hour) || null;
     }
-  }, [mode, appointments, dateStr, employeeId, hour, paramId]);
+
+    // If we have an id-based appointment but no date param in URL, canonicalize URL to include the date
+    if (existingAppointment && paramId && !dateStr && existingAppointment.date) {
+      try {
+        navigate(`/appointment-form?id=${encodeURIComponent(paramId)}&date=${existingAppointment.date}&mode=edit`, { replace: true });
+        return; // will re-run effect with date param
+      } catch (e) { /* ignore navigation errors */ }
+    }
+
+    if (!existingAppointment) return;
+
+    const duration = existingAppointment.duration || 30;
+    setForm({
+      id: existingAppointment.id,
+      client: existingAppointment.client || '',
+      phone: existingAppointment.phone || '',
+      description: existingAppointment.description || '',
+      clientInfo: existingAppointment.clientInfo || existingAppointment.customerInfo || '',
+      price: existingAppointment.price || '',
+      paymentType: existingAppointment.paymentType || 'cash',
+      durationSelect: '30',
+      duration: duration,
+      assignedEmployee: existingAppointment.employee || employeeId || '',
+      employeeSelect: existingAppointment.displayEmployee || '',
+      employeeExplicit: existingAppointment.employeeExplicit || false,
+      time: existingAppointment.time || hour || ''
+    });
+    // keep a reference to the original appointment for edit logic
+    originalApptRef.current = existingAppointment;
+  }, [mode, appointments, dateStr, employeeId, hour, paramId, navigate]);
 
   async function handleSave(e) {
     e.preventDefault();
@@ -483,6 +493,13 @@ export function AppointmentForm({ appointments, setAppointments }) {
       navigate(`/appointment?date=${dayjs(date).format('YYYY-MM-DD')}`);
     } catch (error) {
       console.error('Error saving appointment:', error);
+      if (error && error.code === 'SLOT_CONFLICT' && error.existingId) {
+        setFormError('Υπάρχει ήδη ραντεβού σε αυτή την ώρα. Ανοίγω το υπάρχον ραντεβού.');
+        try {
+          navigate(`/appointment-form?id=${encodeURIComponent(error.existingId)}&mode=edit`);
+          return;
+        } catch (e) { /* ignore */ }
+      }
       setFormError('Σφάλμα κατά την αποθήκευση. Δοκιμάστε ξανά.');
     }
   }
@@ -598,9 +615,12 @@ export function AppointmentForm({ appointments, setAppointments }) {
     try {
       // Find the appointment ID in Firebase
       const currentAppointments = appointments[dateKey] || [];
-      const appointmentToDelete = currentAppointments.find(apt => 
-        apt.employee === employeeId && apt.time === hour
-      );
+      // Prefer id-based delete when available (opened by id). Fall back to employee+hour for legacy routes.
+      const appointmentToDelete = currentAppointments.find(apt => {
+        if (form.id && String(apt.id) === String(form.id)) return true;
+        if (paramId && String(apt.id) === String(paramId)) return true;
+        return (employeeId && hour && apt.employee === employeeId && apt.time === hour);
+      });
       
       if (appointmentToDelete && appointmentToDelete.id) {
         await deleteAppointment(appointmentToDelete.id);
@@ -618,7 +638,8 @@ export function AppointmentForm({ appointments, setAppointments }) {
     }
   }
 
-  if (!employeeId || !hour) {
+  // Allow opening by id-only when editing (paramId present). Legacy routes still require employee+hour.
+  if (!paramId && (!employeeId || !hour)) {
     return (
       <Container size="sm" py="xl">
         <Paper p="xl" radius="lg" withBorder shadow="md" ta="center">
