@@ -61,7 +61,7 @@ export const EMPLOYEE_SCHEDULE_OVERRIDES = {
   // Wednesday 2025-09-24: Emmanouela 09:00-13:00, Hliana 13:00-21:00 (one-off)
   '2025-09-24': {
     emmanouela: {
-      3: [['09:00','13:00']]
+      3: [['09:00','14:00']]
     },
     hliana: {
       3: [['13:00','21:00']]
@@ -119,4 +119,14 @@ export function getEmployeeScheduleForDate(employeeId, date) {
   const fallback = EMPLOYEE_SCHEDULE[employeeId];
   if (!fallback) return null;
   return fallback[dayNum] || null;
+}
+
+// Optional per-date business hours overrides. Return { start: 'HH:mm', end: 'HH:mm' } or null.
+export function getBusinessHoursForDate(date) {
+  const d = dayjs(date);
+  if (!d.isValid()) return null;
+  const dateStr = d.format('YYYY-MM-DD');
+  // For 2025-09-24 the shop opens at 09:00 so employees scheduled at 09:00 can start.
+  if (dateStr === '2025-09-24') return { start: '09:00', end: '21:00' };
+  return null;
 }

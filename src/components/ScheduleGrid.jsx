@@ -7,7 +7,7 @@ import { deleteAppointment, saveAppointment } from '../services/appointmentServi
 import { backupAppointment } from '../services/backupService';
 import dayjs from 'dayjs';
 import { Modal } from '@mantine/core';
-import { getEmployeeScheduleForDate } from '../services/scheduleService';
+import { getEmployeeScheduleForDate, getBusinessHoursForDate } from '../services/scheduleService';
 
 // Employees (columns)
 const EMPLOYEES = [
@@ -74,7 +74,9 @@ const SLOT_PIXEL_HEIGHT = 6;
 
 function generateBaseSlotsForDate(date){
   const dayNum = dayjs(date).day();
-  const config = BUSINESS_HOURS[dayNum];
+  // allow per-date business hours override
+  const override = getBusinessHoursForDate(date);
+  const config = override || BUSINESS_HOURS[dayNum];
   if (!config) return [];
   const slots = [];
   let cursor = dayjs(`${dayjs(date).format('YYYY-MM-DD')}T${config.start}`);
