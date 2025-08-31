@@ -695,24 +695,42 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   type="button"
                   title="Προηγούμενη ραντεβού της ημέρας"
                   onClick={() => {
-                    // Load the previous appointment (any employee) for the same date and populate the form
                     const dateKey = dayjs(date).format('YYYY-MM-DD');
                     const dayAppts = (appointments?.[dateKey] || []).slice().sort((a,b)=> (a.time||'').localeCompare(b.time||''));
                     if (!dayAppts || dayAppts.length === 0) return;
+                    const employeesOrder = EMPLOYEES.map(e => e.id);
                     const currentId = form.id || (originalApptRef.current && originalApptRef.current.id) || null;
                     const currentTime = form.time || hour || (originalApptRef.current ? originalApptRef.current.time : '');
-                    // find index by id first, then by time
-                    let idx = -1;
-                    if (currentId) idx = dayAppts.findIndex(a => String(a.id) === String(currentId));
-                    if (idx === -1) idx = dayAppts.findIndex(a => a.time === currentTime);
-                    if (idx === -1) {
-                      idx = dayAppts.findIndex(a => a.time > currentTime);
-                      if (idx === -1) idx = dayAppts.length;
+                    let currentEmployee = form.assignedEmployee || (originalApptRef.current && originalApptRef.current.employee) || employeeId || employeesOrder[0];
+                    let empIdx = employeesOrder.indexOf(currentEmployee);
+                    if (empIdx === -1) empIdx = 0;
+
+                    const findPrevForEmployee = (empId) => {
+                      const list = dayAppts.filter(a => a.employee === empId).sort((a,b)=> (a.time||'').localeCompare(b.time||''));
+                      if (!list || list.length === 0) return null;
+                      let idx = -1;
+                      if (currentId) idx = list.findIndex(a => String(a.id) === String(currentId));
+                      if (idx === -1) idx = list.findIndex(a => a.time === currentTime);
+                      if (idx === -1) {
+                        idx = list.findIndex(a => a.time > currentTime);
+                        if (idx === -1) idx = list.length;
+                      }
+                      const prevIdx = idx - 1;
+                      if (prevIdx >= 0) return list[prevIdx];
+                      return null;
+                    };
+
+                    // try previous in current employee
+                    let target = findPrevForEmployee(currentEmployee);
+                    if (!target) {
+                      // search previous employees in order (left of current)
+                      for (let i = empIdx - 1; i >= 0; i--) {
+                        const list = dayAppts.filter(a => a.employee === employeesOrder[i]).sort((a,b)=> (a.time||'').localeCompare(b.time||''));
+                        if (list.length > 0) { target = list[list.length - 1]; break; }
+                      }
                     }
-                    const prevIdx = idx - 1;
-                    if (prevIdx >= 0) {
-                      const target = dayAppts[prevIdx];
-                      // populate full form with target appointment
+
+                    if (target) {
                       originalApptRef.current = target;
                       setForm({
                         id: target.id,
@@ -741,49 +759,66 @@ export function AppointmentForm({ appointments, setAppointments }) {
                   type="button"
                   title="Επόμενη ραντεβού της ημέρας"
                   onClick={() => {
-                    // Load the next appointment (any employee) for the same date and populate the form
                     const dateKey = dayjs(date).format('YYYY-MM-DD');
                     const dayAppts = (appointments?.[dateKey] || []).slice().sort((a,b)=> (a.time||'').localeCompare(b.time||''));
                     if (!dayAppts || dayAppts.length === 0) return;
+                    const employeesOrder = EMPLOYEES.map(e => e.id);
                     const currentId = form.id || (originalApptRef.current && originalApptRef.current.id) || null;
                     const currentTime = form.time || hour || (originalApptRef.current ? originalApptRef.current.time : '');
-                    let idx = -1;
-                    if (currentId) idx = dayAppts.findIndex(a => String(a.id) === String(currentId));
-                    if (idx === -1) idx = dayAppts.findIndex(a => a.time === currentTime);
-                    if (idx === -1) {
-                      idx = dayAppts.findIndex(a => a.time > currentTime);
-                      if (idx === -1) idx = dayAppts.length;
+                    let currentEmployee = form.assignedEmployee || (originalApptRef.current && originalApptRef.current.employee) || employeeId || employeesOrder[0];
+                    let empIdx = employeesOrder.indexOf(currentEmployee);
+                    if (empIdx === -1) empIdx = 0;
+
+                    const findNextForEmployee = (empId) => {
+                      const list = dayAppts.filter(a => a.employee === empId).sort((a,b)=> (a.time||'').localeCompare(b.time||''));
+                      if (!list || list.length === 0) return null;
+                      let idx = -1;
+                      if (currentId) idx = list.findIndex(a => String(a.id) === String(currentId));
+                      if (idx === -1) idx = list.findIndex(a => a.time === currentTime);
+                      if (idx === -1) {
+                        idx = list.findIndex(a => a.time > currentTime);
+                        if (idx === -1) idx = list.length;
+                      }
+                      let nextIdx;
+                      if (idx === list.length) return null;
+                      if (idx !== -1 && list[idx] && (String(list[idx].id) === String(currentId) || list[idx].time === currentTime)) {
+                        nextIdx = idx + 1;
+                      } else {
+                        nextIdx = idx;
+                      }
+                      if (nextIdx < 0 || nextIdx >= list.length) return null;
+                      return list[nextIdx];
+                    };
+
+                    // try next in current employee
+                    let target = findNextForEmployee(currentEmployee);
+                    if (!target) {
+                      // search next employees in order (right of current)
+                      for (let i = empIdx + 1; i < employeesOrder.length; i++) {
+                        const list = dayAppts.filter(a => a.employee === employeesOrder[i]).sort((a,b)=> (a.time||'').localeCompare(b.time||''));
+                        if (list.length > 0) { target = list[0]; break; }
+                      }
                     }
-                    // decide target index
-                    let nextIdx;
-                    if (idx === dayAppts.length) {
-                      // no later appointment
-                      return;
+
+                    if (target) {
+                      originalApptRef.current = target;
+                      setForm({
+                        id: target.id,
+                        client: target.client || '',
+                        phone: target.phone || '',
+                        description: target.description || '',
+                        clientInfo: target.clientInfo || target.customerInfo || '',
+                        price: target.price || '',
+                        paymentType: target.paymentType || 'cash',
+                        durationSelect: String(target.duration || 30),
+                        duration: target.duration || 30,
+                        assignedEmployee: target.employee || '',
+                        employeeSelect: target.displayEmployee || '',
+                        employeeExplicit: target.employeeExplicit || false,
+                        time: target.time || ''
+                      });
+                      setFormError('');
                     }
-                    if (idx !== -1 && dayAppts[idx] && (String(dayAppts[idx].id) === String(currentId) || dayAppts[idx].time === currentTime)) {
-                      nextIdx = idx + 1;
-                    } else {
-                      nextIdx = idx;
-                    }
-                    if (nextIdx < 0 || nextIdx >= dayAppts.length) return;
-                    const target = dayAppts[nextIdx];
-                    originalApptRef.current = target;
-                    setForm({
-                      id: target.id,
-                      client: target.client || '',
-                      phone: target.phone || '',
-                      description: target.description || '',
-                      clientInfo: target.clientInfo || target.customerInfo || '',
-                      price: target.price || '',
-                      paymentType: target.paymentType || 'cash',
-                      durationSelect: String(target.duration || 30),
-                      duration: target.duration || 30,
-                      assignedEmployee: target.employee || '',
-                      employeeSelect: target.displayEmployee || '',
-                      employeeExplicit: target.employeeExplicit || false,
-                      time: target.time || ''
-                    });
-                    setFormError('');
                   }}
                   style={{ width: 56, height: 36, borderRadius: 8, border: '1px solid #d6336c', background: '#fff0f6', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 6 }}
                   aria-label="Επόμενη ραντεβού"

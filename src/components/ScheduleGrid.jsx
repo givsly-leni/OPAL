@@ -370,20 +370,37 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
             <Table.Thead>
               <Table.Tr className={styles.tableHeadRow}>
                 <Table.Th className={styles.hourHeader}>Ώρα</Table.Th>
-                {EMPLOYEES.map((e,idx)=>(
-                  <Table.Th
-                    key={e.id}
-                    className={styles.empHeader}
-                    style={{
-                      borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
-                      minWidth: EMPLOYEE_CELL_MIN_WIDTH,
-                      fontSize: 'clamp(10px, 2vw, 12px)',
-                      padding: 'clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px)'
-                    }}
-                  >
-                    {e.name}
-                  </Table.Th>
-                ))}
+                {(() => {
+                  // Build a columns array that inserts a time-column after every 2 employees
+                  const cols = [];
+                  EMPLOYEES.forEach((emp, i) => {
+                    cols.push({ type: 'emp', emp, idx: i });
+                    // Insert a time column after every employee except the last one
+                    if (i !== EMPLOYEES.length - 1) cols.push({ type: 'time', key: `time-${i}` });
+                  });
+                  return cols.map((col, ci) => {
+                    if (col.type === 'emp') {
+                      const e = col.emp; const idx = col.idx;
+                      return (
+                        <Table.Th
+                          key={e.id}
+                          className={styles.empHeader}
+                          style={{
+                            borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
+                            minWidth: EMPLOYEE_CELL_MIN_WIDTH,
+                            fontSize: 'clamp(10px, 2vw, 12px)',
+                            padding: 'clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px)'
+                          }}
+                        >
+                          {e.name}
+                        </Table.Th>
+                      );
+                    }
+                    return (
+                      <Table.Th key={col.key || `time-col-${ci}`} className={styles.hourHeader} style={{ minWidth: 'clamp(14px, 1.2vw, 18px)', textAlign: 'center', padding: '0 1px', fontSize: 'clamp(10px, 1.6vw, 12px)' }}>Ώρα</Table.Th>
+                    );
+                  });
+                })()}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -405,280 +422,284 @@ export function ScheduleGrid({ date, appointments, setAppointments }) {
                       : `${styles.minorDivider}`;
                 return (
                   <Table.Tr key={slot} className={rowClass} style={{ height: `${intervalMin / SLOT_MINUTES * 16}px` }}>
-                    <Table.Td className={styles.timeCell} style={{ fontSize: 'clamp(11px, 2vw, 13px)', fontWeight: 600, opacity:0.95, padding: '0 3px', lineHeight: 1.15, width: 'clamp(50px, 7vw, 70px)' }}>{displayLabel}</Table.Td>
-                    {EMPLOYEES.map((e,idx)=>{
-                      const startCell = getAppointmentStartCell(e.id, slot);
-                      const covered = slotCovered(e.id, slot);
-                      const color=EMPLOYEE_COLORS[e.id]||'gray';
-                      if (covered && !startCell) return null;
-                      const working = isEmployeeWorking(e.id, date, slot);
-                      let isShared = false; let sharedColor = null;
-                      if(startCell){
-                        const phoneKey = (startCell.appt.phone||'').trim();
-                        isShared = sharedPhones.has(phoneKey);
-                        sharedColor = isShared ? sharedColorCache[phoneKey] : null;
-                      }
-                      // Mark the whole table cell as paid only when the appointment has a numeric price
-                      const isPaid = !!startCell && isAppointmentPaid(startCell.appt);
-                      if (process.env.NODE_ENV !== 'production' && startCell && startCell.appt) {
-                        try {
-                          const rawPrice = startCell.appt.price;
-                          if ((rawPrice !== null && rawPrice !== undefined && rawPrice !== '') && !isAppointmentPaid(startCell.appt)) {
-                            // Avoid logging full appointment objects; log a concise summary instead.
-                            console.warn(`[ScheduleGrid] price-present-but-not-paid id=${startCell.appt.id} date=${startCell.appt.date} time=${startCell.appt.time} price=${rawPrice} paymentType=${startCell.appt.paymentType}`);
-                          }
-                        } catch(e) {}
-                      }
-                      const apptCellClass = startCell && !isPaid ? styles.apptCellActive : '';
-                      const sharedCellStyle = startCell && isShared ? { backgroundColor: sharedColor } : {};
-                      const paidCellStyle = isPaid ? { backgroundColor: '#c7ccd4', borderRight: '1px solid rgba(0,0,0,0.16)', transition: 'background-color 120ms ease' } : {};
-                      return (
-                        <Table.Td
-                          key={e.id}
-                          className={[
-                            styles.empCell,
-                            !startCell && working ? styles.workingSlot : '',
-                            apptCellClass,
-                            '',
-                            ''
-                          ].join(' ')}
-                          style={{
-                            borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
-                            minWidth: EMPLOYEE_CELL_MIN_WIDTH,
-                            padding: '0 2px',
-                            verticalAlign: 'middle',
-                            ...sharedCellStyle,
-                            ...paidCellStyle,
-                            userSelect: 'auto'
-                          }}
-                          /* Drag & drop removed */
-                          data-emp={e.id}
-                          data-slot={slot}
-                          rowSpan={startCell ? startCell.span : 1}
-                        >
-                          {startCell ? (
-                            (() => {
-                              const sharedStyle = isShared ? {
-                                background: sharedColor,
-                                color:'#fff'
-                              } : {};
-                              const status = startCell.appt.status || 'unconfirmed';
-                              let statusStyle = {};
-                              // Consider appointment paid only if it has a numeric price
-                              const isPaid = isAppointmentPaid(startCell.appt);
-                              if (process.env.NODE_ENV !== 'production' && startCell && startCell.appt) {
-                                try {
-                                  const rawPrice = startCell.appt.price;
-                                  if ((rawPrice !== null && rawPrice !== undefined && rawPrice !== '') && !isAppointmentPaid(startCell.appt)) {
-                                    // Avoid logging full appointment objects; log a concise summary instead.
-                                    console.warn(`[ScheduleGrid] price-present-but-not-paid id=${startCell.appt.id} date=${startCell.appt.date} time=${startCell.appt.time} price=${rawPrice} paymentType=${startCell.appt.paymentType}`);
-                                  }
-                                } catch(e) {}
-                              }
-                              if (process.env.NODE_ENV !== 'production') {
-                                try {
-                                  console.debug('[ScheduleGrid] appt-pay-check', {
-                                    id: startCell.appt.id,
-                                    date: startCell.appt.date,
-                                    time: startCell.appt.time,
-                                    price: startCell.appt.price,
-                                    paymentType: startCell.appt.paymentType,
-                                    isPaid
-                                  });
-                                } catch (e) { /* ignore */ }
-                              }
-                              // Apply a stronger paid visual to the outer container (Paper)
-                              const paidStyle = isPaid ? {
-                                backgroundColor: '#bfc7d0',
-                                borderRight: '1px solid rgba(0,0,0,0.22)',
-                                boxShadow: 'inset 0 2px 6px rgba(255,255,255,0.6), 0 3px 10px rgba(0,0,0,0.10)',
-                                color: '#4b5561',
-                                cursor: 'default',
-                                transform: 'translateY(0.5px)'
-                              } : {};
-                              const isConfirmed = status === 'confirmed';
-                              if(isConfirmed && isShared) {
-                                statusStyle = { boxShadow: '0 3px 6px -2px rgba(0,0,0,0.45)' };
-                              }
-                              // Inner paid styles for icons/buttons inside the appointment
-                              const paidInnerStyle = isPaid ? { backgroundColor: paidStyle.backgroundColor, color: paidStyle.color } : {};
-                              return (
-                                <Paper
-                                  /* DnD attributes removed */
-                                  radius="sm"
-                                  p="2px 4px"
-                                  className={`${styles.apptPaper} ${isShared ? styles.sharedApptBase : (!isPaid ? styles.apptPaperColored : '')}`}
+                    <Table.Td className={styles.timeCell} style={{ fontSize: 'clamp(10px, 1.6vw, 12px)', fontWeight: 500, opacity:0.95, padding: '0 1px', lineHeight: 1.15, width: 'clamp(14px, 1.2vw, 18px)', textAlign: 'center' }}>{displayLabel}</Table.Td>
+                    {(() => {
+                      // Build columns with time-columns after every 2 employees
+                      const cols = [];
+                      EMPLOYEES.forEach((emp, i) => {
+                        cols.push({ type: 'emp', emp, idx: i });
+                        // Insert a time column after every employee except the last one
+                        if (i !== EMPLOYEES.length - 1) cols.push({ type: 'time', key: `time-${i}` });
+                      });
+                      return cols.map((col, cidx) => {
+                        if (col.type === 'time') {
+                            return (
+                              <Table.Td key={col.key || `time-${cidx}`} className={styles.timeCell} style={{ fontSize: 'clamp(10px, 1.6vw, 12px)', fontWeight: 500, opacity:0.95, padding: '0 1px', lineHeight: 1.15, width: 'clamp(14px, 1.2vw, 18px)', textAlign: 'center' }}>{displayLabel}</Table.Td>
+                            
+                            );
+                        }
+                        const e = col.emp; const idx = col.idx;
+                        const startCell = getAppointmentStartCell(e.id, slot);
+                        const covered = slotCovered(e.id, slot);
+                        const color=EMPLOYEE_COLORS[e.id]||'gray';
+                        if (covered && !startCell) return null;
+                        const working = isEmployeeWorking(e.id, date, slot);
+                        let isShared = false; let sharedColor = null;
+                        if(startCell){
+                          const phoneKey = (startCell.appt.phone||'').trim();
+                          isShared = sharedPhones.has(phoneKey);
+                          sharedColor = isShared ? sharedColorCache[phoneKey] : null;
+                        }
+                        const isPaid = !!startCell && isAppointmentPaid(startCell.appt);
+                        if (process.env.NODE_ENV !== 'production' && startCell && startCell.appt) {
+                          try {
+                            const rawPrice = startCell.appt.price;
+                            if ((rawPrice !== null && rawPrice !== undefined && rawPrice !== '') && !isAppointmentPaid(startCell.appt)) {
+                              console.warn(`[ScheduleGrid] price-present-but-not-paid id=${startCell.appt.id} date=${startCell.appt.date} time=${startCell.appt.time} price=${rawPrice} paymentType=${startCell.appt.paymentType}`);
+                            }
+                          } catch(e) {}
+                        }
+                        const apptCellClass = startCell && !isPaid ? styles.apptCellActive : '';
+                        const sharedCellStyle = startCell && isShared ? { backgroundColor: sharedColor } : {};
+                        const paidCellStyle = isPaid ? { backgroundColor: '#c7ccd4', borderRight: '1px solid rgba(0,0,0,0.16)', transition: 'background-color 120ms ease' } : {};
+                        return (
+                          <Table.Td
+                            key={e.id}
+                            className={[
+                              styles.empCell,
+                              !startCell && working ? styles.workingSlot : '',
+                              apptCellClass,
+                              '',
+                              ''
+                            ].join(' ')}
+                            style={{
+                              borderRight: idx===EMPLOYEES.length-1? 'none':'1px solid rgba(214,51,108,0.25)',
+                              minWidth: EMPLOYEE_CELL_MIN_WIDTH,
+                              padding: '0 2px',
+                              verticalAlign: 'middle',
+                              ...sharedCellStyle,
+                              ...paidCellStyle,
+                              userSelect: 'auto'
+                            }}
+                            data-emp={e.id}
+                            data-slot={slot}
+                            rowSpan={startCell ? startCell.span : 1}
+                          >
+                            {startCell ? (
+                              (() => {
+                                const sharedStyle = isShared ? {
+                                  background: sharedColor,
+                                  color:'#fff'
+                                } : {};
+                                const status = startCell.appt.status || 'unconfirmed';
+                                let statusStyle = {};
+                                const isPaid = isAppointmentPaid(startCell.appt);
+                                if (process.env.NODE_ENV !== 'production' && startCell && startCell.appt) {
+                                  try {
+                                    const rawPrice = startCell.appt.price;
+                                    if ((rawPrice !== null && rawPrice !== undefined && rawPrice !== '') && !isAppointmentPaid(startCell.appt)) {
+                                      console.warn(`[ScheduleGrid] price-present-but-not-paid id=${startCell.appt.id} date=${startCell.appt.date} time=${startCell.appt.time} price=${rawPrice} paymentType=${startCell.appt.paymentType}`);
+                                    }
+                                  } catch(e) {}
+                                }
+                                if (process.env.NODE_ENV !== 'production') {
+                                  try {
+                                    console.debug('[ScheduleGrid] appt-pay-check', {
+                                      id: startCell.appt.id,
+                                      date: startCell.appt.date,
+                                      time: startCell.appt.time,
+                                      price: startCell.appt.price,
+                                      paymentType: startCell.appt.paymentType,
+                                      isPaid
+                                    });
+                                  } catch (e) { /* ignore */ }
+                                }
+                                const paidStyle = isPaid ? {
+                                  backgroundColor: '#bfc7d0',
+                                  borderRight: '1px solid rgba(0,0,0,0.22)',
+                                  boxShadow: 'inset 0 2px 6px rgba(255,255,255,0.6), 0 3px 10px rgba(0,0,0,0.10)',
+                                  color: '#4b5561',
+                                  cursor: 'default',
+                                  transform: 'translateY(0.5px)'
+                                } : {};
+                                const isConfirmed = status === 'confirmed';
+                                if(isConfirmed && isShared) {
+                                  statusStyle = { boxShadow: '0 3px 6px -2px rgba(0,0,0,0.45)' };
+                                }
+                                const paidInnerStyle = isPaid ? { backgroundColor: paidStyle.backgroundColor, color: paidStyle.color } : {};
+                                return (
+                                  <Paper
+                                    radius="sm"
+                                    p="1px 2px"
+                                    className={`${styles.apptPaper} ${isShared ? styles.sharedApptBase : (!isPaid ? styles.apptPaperColored : '')}`}
+                                    style={{
+                                      borderWidth: 0,
+                                      cursor: 'grab',
+                                      minHeight: `${Math.max(26, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 6)}px`,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 2,
+                                      width:'100%',
+                                      ...sharedStyle,
+                                      ...statusStyle,
+                                      ...paidStyle,
+                                      WebkitTapHighlightColor: 'transparent',
+                                      userSelect: 'none',
+                                      WebkitUserSelect: 'none',
+                                      touchAction: 'manipulation'
+                                    }}
+                                  >
+                                    <Badge
+                                      color={color}
+                                      variant="filled"
+                                      radius="sm"
+                                      className={styles.apptBadge}
+                                      onClick={()=>openEdit(e.id,slot,startCell.appt && startCell.appt.id)}
+                                      title={`${(startCell.appt.client||'').trim()}${startCell.appt.description? ' • '+((startCell.appt.description||'').split(/\s+/)[0]):''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}`}
+                                      style={{
+                                        fontSize: 'clamp(10px, 2vw, 13px)',
+                                        lineHeight: 1.15,
+                                        padding: '1px 4px',
+                                        cursor: 'pointer',
+                                        backgroundColor: 'rgba(255,255,255,0.18)',
+                                        borderWidth: 0,
+                                        color: '#fff',
+                                        userSelect: 'none',
+                                        ...(isPaid ? { backgroundColor: paidStyle.backgroundColor || '#bfc7d0', color: paidStyle.color || '#4b5561' } : {})
+                                      }}
+                                    >
+                                      {(() => {
+                                        const fullName = (startCell.appt.client || '').trim();
+                                        const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
+                                        const desc = (startCell.appt.description || '').trim();
+                                        const firstDescWord = desc ? desc.split(/\s+/)[0] : '';
+                                        if (!startCell.appt.employeeExplicit) {
+                                          return <span>{clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}</span>;
+                                        }
+                                        const empId = startCell.appt.displayEmployee || startCell.appt.employee || startCell.appt.employeeId || e.id;
+                                        const emp = EMPLOYEES.find(x=>x.id===empId);
+                                        const initial = emp ? emp.name.charAt(0) : (empId ? empId.charAt(0).toUpperCase() : '');
+                                        return (
+                                          <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                            {initial ? <strong style={{ marginRight:4, fontSize:12 }}>({initial})</strong> : null}
+                                            <span>{clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}</span>
+                                          </span>
+                                        );
+                                      })()}
+                                    </Badge>
+
+                                    {(() => {
+                                      const status = startCell.appt.status || 'unconfirmed';
+                                      let icon = <IconClock size={14}/>;
+                                      let statusColor = 'gray';
+                                      let title = 'Μη επιβεβαιωμένο';
+                                      let variant = 'outline';
+                                      const extraStyle = { };
+                                      if(status==='confirmed'){
+                                        icon = <IconCircleCheck size={14}/>;
+                                        statusColor='green';
+                                        title='Επιβεβαιωμένο';
+                                        variant='filled';
+                                        extraStyle.backgroundColor = '#2e7d32';
+                                        extraStyle.color = '#fff';
+                                      } else if(status==='no-answer'){
+                                        icon = <IconPhoneOff size={14}/>;
+                                        statusColor='red';
+                                        title='Δεν το σήκωσε';
+                                        variant='filled';
+                                        extraStyle.backgroundColor = '#c92a2a';
+                                        extraStyle.color = '#fff';
+                                      }
+                                      return (
+                                        <ActionIcon
+                                          size="sm"
+                                          variant={variant}
+                                          color={statusColor}
+                                          radius="sm"
+                                          title={title + ' (κλικ για αλλαγή)'}
+                                          onClick={(ev)=>{ ev.stopPropagation(); cycleStatus(startCell.appt); }}
+                                          style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...extraStyle, ...paidInnerStyle }}
+                                        >
+                                          {icon}
+                                        </ActionIcon>
+                                      );
+                                    })()}
+
+                                    {(() => {
+                                      const isStarred = !!startCell.appt.starred;
+                                      const starStyle = isStarred
+                                        ? { backgroundColor: '#2e7d32', color: '#fff' }
+                                        : { backgroundColor: '#f2f4f6', color: '#6b6f73' };
+                                      const title = isStarred ? 'Αγαπημένο (απενεργοποίηση)' : 'Σημείωση ως αγαπημένο';
+                                      return (
+                                        <ActionIcon
+                                          size="sm"
+                                          variant={isStarred ? 'filled' : 'subtle'}
+                                          color={isStarred ? 'green' : undefined}
+                                          radius="sm"
+                                          title={title}
+                                          onClick={(ev)=>{ ev.stopPropagation(); toggleStar(startCell.appt); }}
+                                          style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...starStyle, ...paidInnerStyle }}
+                                        >
+                                          <IconStar size={14} />
+                                        </ActionIcon>
+                                      );
+                                    })()}
+
+                                    <ActionIcon size="sm" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} title="Διαγραφή" style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...paidInnerStyle }}><IconX size={14}/></ActionIcon>
+                                  </Paper>
+                                );
+                              })()
+                            ) : (
+                              working ? (
+                                <button
+                                  onClick={() => openNew(e.id, slot)}
+                                  className={`${styles.addAction} plusButton`}
                                   style={{
-                                    borderWidth: 0,
-                                    cursor: 'grab',
-                                    minHeight: `${Math.max(30, Math.max(1,startCell.span) * SLOT_PIXEL_HEIGHT + 8)}px`,
+                                    width: '100%',
+                                    height: '18px',
+                                    minHeight: '18px',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: 4,
-                                    width:'100%',
-                                    ...sharedStyle,
-                                    ...statusStyle,
-                                    ...paidStyle,
+                                    justifyContent: 'center',
+                                    padding: '0 6px',
+                                    border: '1px dashed rgba(214,51,108,0.4)',
+                                    backgroundColor: 'rgba(34,197,94,0.08)',
                                     WebkitTapHighlightColor: 'transparent',
                                     userSelect: 'none',
-                                    WebkitUserSelect: 'none',
-                                    touchAction: 'manipulation'
+                                    touchAction: 'manipulation',
+                                    cursor: 'pointer',
+                                    position: 'relative'
                                   }}
+                                  data-emp={e.id}
+                                  data-slot={slot}
+                                  title={`Νέο ραντεβού στις ${slot}`}
                                 >
-                                  {(() => { 
-                                    const fullName = (startCell.appt.client || '').trim();
-                                    const clientFirst = fullName ? fullName.split(/\s+/)[0] : '';
-                                    const desc = (startCell.appt.description || '').trim();
-                                    const firstDescWord = desc ? desc.split(/\s+/)[0] : '';
-                                    return (
-                                      <Badge
-                                        color={color}
-                                        variant="filled"
-                                        radius="sm"
-                                        className={styles.apptBadge}
-                                        onClick={()=>openEdit(e.id,slot,startCell.appt && startCell.appt.id)}
-                                        title={`${fullName}${firstDescWord? ' • '+firstDescWord:''}${startCell.appt.phone? '\n'+startCell.appt.phone:''}${desc? '\n'+desc:''}`}
-                                            style={{
-                                            fontSize: 'clamp(10px, 2vw, 13px)',
-                                            lineHeight: 1.15,
-                                            padding: '2px 6px',
-                                            cursor: 'pointer',
-                                            backgroundColor: 'rgba(255,255,255,0.18)',
-                                            borderWidth: 0,
-                                            color: '#fff',
-                                            userSelect: 'none',
-                                            ...(isPaid ? { backgroundColor: paidStyle.backgroundColor || '#bfc7d0', color: paidStyle.color || '#4b5561' } : {})
-                                          }}
-                                      >
-                                        {(() => {
-                                          // Only show an employee initial if it was explicitly
-                                          // selected when creating/editing the appointment.
-                                          if (!startCell.appt.employeeExplicit) {
-                                            return <span>{clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}</span>;
-                                          }
-                                          const empId = startCell.appt.displayEmployee || startCell.appt.employee || startCell.appt.employeeId || e.id;
-                                          const emp = EMPLOYEES.find(x=>x.id===empId);
-                                          const initial = emp ? emp.name.charAt(0) : (empId ? empId.charAt(0).toUpperCase() : '');
-                                          return (
-                                            <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
-                                              {initial ? <strong style={{ marginRight:4, fontSize:12 }}>({initial})</strong> : null}
-                                              <span>{clientFirst}{firstDescWord ? ` (${firstDescWord})` : ''}</span>
-                                            </span>
-                                          );
-                                        })()}
-                                      </Badge>
-                                    );
-                                  })()}
-                                  {(() => {
-                                    const status = startCell.appt.status || 'unconfirmed';
-                                    let icon = <IconClock size={14}/>;
-                                    let statusColor = 'gray';
-                                    let title = 'Μη επιβεβαιωμένο';
-                                    let variant = 'outline';
-                                    const extraStyle = { };
-                                    if(status==='confirmed'){
-                                      icon = <IconCircleCheck size={14}/>;
-                                      statusColor='green';
-                                      title='Επιβεβαιωμένο';
-                                      variant='filled';
-                                      extraStyle.backgroundColor = '#2e7d32';
-                                      extraStyle.color = '#fff';
-                                    } else if(status==='no-answer'){
-                                      icon = <IconPhoneOff size={14}/>;
-                                      statusColor='red';
-                                      title='Δεν το σήκωσε';
-                                      variant='filled';
-                                      extraStyle.backgroundColor = '#c92a2a';
-                                      extraStyle.color = '#fff';
-                                    }
-                                    return (
-                                      <ActionIcon
-                                        size="sm"
-                                        variant={variant}
-                                        color={statusColor}
-                                        radius="sm"
-                                        title={title + ' (κλικ για αλλαγή)'}
-                                        onClick={(ev)=>{ ev.stopPropagation(); cycleStatus(startCell.appt); }}
-                                        style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...extraStyle, ...paidInnerStyle }}
-                                      >
-                                        {icon}
-                                      </ActionIcon>
-                                    );
-                                  })()}
-                                  {(() => {
-                                    const isStarred = !!startCell.appt.starred;
-                                    const starStyle = isStarred
-                                      ? { backgroundColor: '#2e7d32', color: '#fff' }
-                                      : { backgroundColor: '#f2f4f6', color: '#6b6f73' };
-                                    const title = isStarred ? 'Αγαπημένο (απενεργοποίηση)' : 'Σημείωση ως αγαπημένο';
-                                    return (
-                                      <ActionIcon
-                                        size="sm"
-                                        variant={isStarred ? 'filled' : 'subtle'}
-                                        color={isStarred ? 'green' : undefined}
-                                        radius="sm"
-                                        title={title}
-                                        onClick={(ev)=>{ ev.stopPropagation(); toggleStar(startCell.appt); }}
-                                        style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...starStyle, ...paidInnerStyle }}
-                                      >
-                                        <IconStar size={14} />
-                                      </ActionIcon>
-                                    );
-                                  })()}
-
-                                  <ActionIcon size="sm" color="red" variant="subtle" radius="sm" onClick={()=>openDelete(e.id,slot)} title="Διαγραφή" style={{ width:21, height:21, minWidth:21, minHeight:21, padding:0, display:'flex', alignItems:'center', justifyContent:'center', ...paidInnerStyle }}><IconX size={14}/></ActionIcon>
-                                </Paper>
-                              );
-                            })()
-                          ) : (
-                            working ? (
-                              <button
-                                onClick={() => openNew(e.id, slot)}
-                                className={`${styles.addAction} plusButton`}
-                                style={{
-                                  width: '100%',
-                                  height: '18px',
-                                  minHeight: '18px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  padding: '0 6px',
-                                  border: '1px dashed rgba(214,51,108,0.4)',
-                                  backgroundColor: 'rgba(34,197,94,0.08)',
-                                  WebkitTapHighlightColor: 'transparent',
-                                  userSelect: 'none',
-                                  touchAction: 'manipulation',
-                                  cursor: 'pointer',
-                                  position: 'relative'
-                                }}
-                                data-emp={e.id}
-                                data-slot={slot}
-                                title={`Νέο ραντεβού στις ${slot}`}
-                              >
-                                <span style={{ fontSize: 12, color: '#166534', fontWeight: 700, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{slot}</span>
-                              </button>
-                            ) : (
-                              <div
-                                style={{
-                                  width:'100%',
-                                  height:'14px',
-                                  minHeight:'14px',
-                                  opacity:0.25,
-                                  background:'repeating-linear-gradient(45deg, #f5f0f3, #f5f0f3 4px, #ece2e7 4px, #ece2e7 8px)',
-                                  border:'1px solid rgba(214,51,108,0.15)',
-                                  borderRadius:4,
-                                  WebkitTapHighlightColor: 'transparent',
-                                  userSelect:'none'
-                                }}
-                                title="Εκτός ωραρίου"
-                                data-emp={e.id}
-                                data-slot={slot}
-                              />
-                            )
-                          )}
-                        </Table.Td>
-                      );
-                    })}
+                                  <span style={{ fontSize: 12, color: '#166534', fontWeight: 700, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{slot}</span>
+                                </button>
+                              ) : (
+                                <div
+                                  style={{
+                                    width:'100%',
+                                    height:'14px',
+                                    minHeight:'14px',
+                                    opacity:0.25,
+                                    background:'repeating-linear-gradient(45deg, #f5f0f3, #f5f0f3 4px, #ece2e7 4px, #ece2e7 8px)',
+                                    border:'1px solid rgba(214,51,108,0.15)',
+                                    borderRadius:4,
+                                    WebkitTapHighlightColor: 'transparent',
+                                    userSelect:'none'
+                                  }}
+                                  title="Εκτός ωραρίου"
+                                  data-emp={e.id}
+                                  data-slot={slot}
+                                />
+                              )
+                            )}
+                          </Table.Td>
+                        );
+                      });
+                    })()}
                   </Table.Tr>
                 );
               })}

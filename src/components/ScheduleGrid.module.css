@@ -20,12 +20,13 @@
 }
 
 .hourHeader {
-  width: clamp(60px, 8vw, 80px);
+  /* compact hour header */
+  width: clamp(20px, 4vw, 40px);
   font-weight: 700;
   color: #c2255c;
   letter-spacing: 0.5px;
-  font-size: clamp(10px, 2vw, 12px);
-  padding: clamp(6px, 1.5vw, 10px) clamp(4px, 1vw, 8px);
+  font-size: clamp(9px, 1.4vw, 11px);
+  padding: 2px 4px;
   border-right: 1px solid rgba(214, 51, 108, 0.25);
   border-bottom: 1px solid rgba(214, 51, 108, 0.35);
 }
@@ -41,12 +42,14 @@
 }
 
 .timeCell {
+  /* compact time cell for repeated small grids */
   font-weight: 600;
+  font-size: clamp(10px, 1.6vw, 12px);
   color: #d6336c;
-  padding: clamp(4px, 1vw, 6px) clamp(6px, 1.5vw, 8px);
+  padding: 1px 2px;
   border-right: 1px solid rgba(214, 51, 108, 0.25);
   border-bottom: 1px solid rgba(214, 51, 108, 0.18);
-  width: clamp(60px, 8vw, 80px);
+  width: clamp(20px, 4vw, 40px);
   background: rgba(255, 255, 255, 0.65);
   text-align: center;
 }
@@ -83,10 +86,10 @@
   white-space: normal;
   line-height: 1.2;
   word-break: break-word;
-  padding: clamp(2px, 0.5vw, 4px) clamp(3px, 0.8vw, 6px);
+  padding: clamp(1px, 0.3vw, 2px) clamp(2px, 0.5vw, 4px);
   flex-grow: 1;
   text-transform: capitalize;
-  font-size: clamp(9px, 1.8vw, 11px);
+  font-size: clamp(9px, 1.6vw, 11px);
   text-align: center;
   cursor: pointer;
 }

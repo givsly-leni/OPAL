@@ -10,6 +10,157 @@ import { BUSINESS_HOURS } from './ScheduleGrid';
 import { loadAllWaitlist, removeWaiting } from '../services/waitlistService';
 import { purgeAppointmentsBefore } from '../services/appointmentService';
 import { IconPlus, IconX } from '@tabler/icons-react';
+import { useRef, useCallback } from 'react';
+
+// Helper: render a single month grid using the same day styling as DatePicker
+function Month({ monthStart, onPick }) {
+  const start = dayjs(monthStart).startOf('month');
+  const end = start.endOf('month');
+  const days = [];
+  // Build grid: from start of month to end, keep each day
+  for (let d = start; d.isBefore(end) || d.isSame(end, 'day'); d = d.add(1, 'day')) {
+    days.push(d);
+  }
+
+  const weeks = [];
+  let week = [];
+  // Prepend blanks for first week according to weekday (Monday-first)
+  const firstWeekday = (start.day() + 6) % 7; // shift so Monday=0, Sunday=6
+  for (let i = 0; i < firstWeekday; i++) week.push(null);
+  days.forEach(d => {
+    week.push(d);
+    if (week.length === 7) { weeks.push(week); week = []; }
+  });
+  if (week.length) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+
+  // Remove any weeks that are completely before the current week so the
+  // calendar always starts at the week that contains today.
+  // Use Monday as the start of week (Monday-first layout)
+  const startOfCurrentWeek = dayjs().startOf('day').subtract((dayjs().day() + 6) % 7, 'day');
+  const filteredWeeks = weeks.filter(w => w.some(d => d && !d.isBefore(startOfCurrentWeek, 'day')));
+
+  const onDayClick = (d) => {
+    if (!d) return;
+  const dayNum = d.day();
+  const conf = BUSINESS_HOURS[dayNum];
+  const isPast = dayjs().isAfter(d, 'day');
+  if (!conf || isPast) return; // disabled day or already passed
+  onPick(d.toDate());
+  };
+
+  return (
+    <div style={{ width: '100%', marginBottom: 18, boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+        <div style={{ fontWeight: 700, color: '#d52f74' }}>{start.format('MMMM YYYY')}</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, padding: '6px 12px' }}>
+        {['Δε', 'Τρ', 'Τε', 'Πε', 'Πα', 'Σα', 'Κυ'].map(h => (
+          <div key={h} style={{ textAlign: 'center', fontSize: 12, color: '#666', fontWeight: 700 }}>{h}</div>
+        ))}
+  {filteredWeeks.flat().map((d, i) => {
+          if (!d) return <div key={`blank-${i}`} />;
+          const isToday = dayjs().isSame(d, 'day');
+          const dayNum = d.day();
+          const conf = BUSINESS_HOURS[dayNum];
+          const isPast = dayjs().isAfter(d, 'day');
+          const disabled = !conf || isPast;
+          const style = {
+            fontSize: 'clamp(12px, 2vw, 14px)',
+            height: 'clamp(36px, 5vw, 44px)',
+            width: '100%',
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: disabled ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: isToday ? 'linear-gradient(135deg, rgba(214,51,108,0.18), rgba(214,51,108,0.05))' : '#fff',
+            border: isToday ? '2px solid #d6336c' : '1px solid rgba(0,0,0,0.04)',
+            color: isPast ? '#999' : (disabled ? 'rgba(0,0,0,0.3)' : undefined),
+            opacity: disabled ? (isToday ? 0.5 : 0.6) : 1,
+            textDecoration: isPast ? 'line-through' : 'none'
+          };
+          return (
+            <div key={d.toString()} onClick={() => onDayClick(d)} style={style} aria-disabled={disabled}>
+              {d.date()}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MonthScroller({ currentDate, onPick }) {
+  const containerRef = useRef(null);
+  // start with only current month + one future month; append on scroll
+  const INITIAL_COUNT = 2; // current + (INITIAL_COUNT-1) future months
+  const APPEND_COUNT = 2; // how many months to append when scrolling
+  const [months, setMonths] = useState(() => {
+    const list = [];
+    const start = dayjs(currentDate).startOf('month');
+    for (let i = 0; i < INITIAL_COUNT; i++) list.push(start.add(i, 'month').toDate());
+    return list;
+  });
+
+  const loadingRef = useRef(false);
+  const scrollTimerRef = useRef(null);
+
+  const maybeLoadMore = useCallback(() => {
+    const el = containerRef.current;
+    if (!el || loadingRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    // only load more future months when scrolling near bottom (no past months)
+    if (scrollTop + clientHeight > scrollHeight - 160) {
+      loadingRef.current = true;
+      const prevScrollTop = el.scrollTop;
+      const prevScrollHeight = el.scrollHeight;
+      setMonths(prev => {
+        const last = dayjs(prev[prev.length - 1]).startOf('month');
+        const add = [];
+        for (let i = 1; i <= APPEND_COUNT; i++) add.push(last.add(i, 'month').toDate());
+        return [...prev, ...add];
+      });
+      // allow render and then restore scrollTop to avoid jumpiness
+      setTimeout(() => {
+        try {
+          const el2 = containerRef.current;
+          if (el2) {
+            // preserve user's viewport roughly
+            el2.scrollTop = Math.min(prevScrollTop, el2.scrollHeight - el2.clientHeight);
+          }
+        } catch (e) {}
+        loadingRef.current = false;
+      }, 120);
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => maybeLoadMore(), 80);
+    };
+    el.addEventListener('scroll', onScroll);
+    // ensure current month is visible at top on first mount
+    setTimeout(() => { if (containerRef.current) containerRef.current.scrollTop = 0; }, 40);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerRef]);
+
+  return (
+    <div ref={containerRef} style={{ maxHeight: 360, overflowY: 'auto', width: '100%', padding: 8 }}>
+      {months.map(m => <Month key={m.toString()} monthStart={m} onPick={onPick} />)}
+    </div>
+  );
+}
 
 export function DayCalendar() {
   const [date, setDate] = useState(new Date());
@@ -132,58 +283,8 @@ export function DayCalendar() {
               Διαγραφή παλιών
             </Button>
           </div>
-          <DatePicker
-            locale="el"
-            value={date}
-            onChange={handlePick}
-            size="md"
-            hideOutsideDates
-            withCellSpacing={false}
-            previousIcon={<IconChevronLeft size={16} stroke={2} />}
-            nextIcon={<IconChevronRight size={16} stroke={2} />}
-            getDayProps={(d) => {
-              const dayNum = dayjs(d).day();
-              const conf = BUSINESS_HOURS[dayNum];
-              const isToday = dayjs().isSame(d, 'day');
-              if (!conf) {
-                return { disabled: true, style: { opacity: isToday ? 0.5 : 0.3, border: isToday ? '1px solid #d6336c' : undefined, background: isToday ? 'rgba(214,51,108,0.08)' : undefined } };
-              }
-              return {
-                style: {
-                  fontSize: 'clamp(12px, 2vw, 14px)',
-                  height: 'clamp(36px, 5vw, 44px)',
-                  width: 'clamp(36px, 5vw, 44px)',
-                  borderRadius: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  position: 'relative',
-                  background: isToday ? 'linear-gradient(135deg, rgba(214,51,108,0.18), rgba(214,51,108,0.05))' : undefined,
-                  border: isToday ? '2px solid #d6336c' : undefined,
-                  color: isToday ? '#a51147' : undefined,
-                }
-              };
-            }}
-            styles={{
-              calendarHeader: { 
-                justifyContent: 'space-between', 
-                marginBottom: 12 
-              },
-              calendarHeaderControl: { 
-                width: 'clamp(28px, 4vw, 32px)', 
-                height: 'clamp(28px, 4vw, 32px)', 
-                minWidth: 28, 
-                borderRadius: 10 
-              },
-              calendarHeaderLevel: { 
-                fontSize: 'clamp(16px, 3vw, 20px)', 
-                fontWeight: 600, 
-                color: '#d52f74' 
-              },
-              monthPickerControl: {
-                fontSize: 'clamp(12px, 2vw, 14px)'
-              }
-            }}
-          />
+          {/* Scrollable month list (lazy loaded). Replaces single DatePicker for infinite scroll UX. */}
+          <MonthScroller currentDate={date} onPick={handlePick} />
           
           <Divider variant="dashed" style={{ width: '80%' }} />
           
