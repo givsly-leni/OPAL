@@ -26,7 +26,15 @@ export async function getCustomerByPhone(phone) {
 
 export async function saveCustomer(customer) {
   const key = phoneToKey(customer.phone);
-  if (!key) throw new Error('Invalid phone for customer');
+  // Do not persist customers unless a valid 10-digit phone is provided.
+  // The app accepts other phone formats in the form, but we only store
+  // canonical customer records when the cleaned phone contains exactly
+  // 10 digits (local rule).
+  if (!key || String(key).length !== 10) {
+    // Return null to signal "not saved" without throwing — callers treat
+    // customer saves as non-blocking and should continue gracefully.
+    return null;
+  }
   const now = new Date().toISOString();
   const nameRaw = customer.name || customer.client || '';
   const nameLower = nameRaw.toLowerCase();

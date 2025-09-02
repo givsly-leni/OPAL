@@ -438,7 +438,7 @@ export function AppointmentForm({ appointments, setAppointments }) {
       // Move the appointment to the chosen employee/time
       employee: form.assignedEmployee,
       displayEmployee: form.employeeSelect || null,
-  time: effectiveTime,
+      time: effectiveTime,
       client: form.client.trim(),
       phone: form.phone.trim(),
       description: form.description.trim(),
@@ -514,10 +514,10 @@ export function AppointmentForm({ appointments, setAppointments }) {
       if (customer) {
         setForm(f => ({
           ...f,
-          client: f.client || customer.name || '',
-          description: f.description || customer.notes || ''
+          // Preserve any user-typed description; do NOT copy customer.notes into description
+          client: f.client || customer.name || ''
         }));
-        if(customer.name){ setNameQuery(customer.name); }
+        if (customer.name) { setNameQuery(customer.name); }
         setCustomerLoaded(true);
       }
     } catch (err) {
