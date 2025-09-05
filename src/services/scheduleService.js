@@ -52,6 +52,18 @@ export const EMPLOYEE_SCHEDULE_HISTORY = {
 // Per-date schedule overrides for special days. Keyed by 'YYYY-MM-DD'.
 // Use sparingly for one-off schedule changes so we don't alter history or defaults.
 export const EMPLOYEE_SCHEDULE_OVERRIDES = {
+  // Hliana works Saturday 2025-09-06 09:00-17:00 (one-off)
+  '2025-09-06': {
+    hliana: {
+      6: [['09:00','17:00']]
+    }
+  },
+  // Kelly works Tuesday 2025-09-09 13:00-21:00 (one-off)
+  '2025-09-09': {
+    kelly: {
+      2: [['13:00','21:00']]
+    }
+  },
   // Make Emmanouela work on Tuesday 2025-09-23 from 16:00 to 21:00 (one-off)
   '2025-09-23': {
     emmanouela: {
@@ -127,6 +139,8 @@ export function getBusinessHoursForDate(date) {
   const d = dayjs(date);
   if (!d.isValid()) return null;
   const dateStr = d.format('YYYY-MM-DD');
+  // For 2025-09-06 (tomorrow), open 09:00-17:00 so Hliana can work full shift
+  if (dateStr === '2025-09-06') return { start: '09:00', end: '17:00' };
   // For 2025-09-24 the shop opens at 09:00 so employees scheduled at 09:00 can start.
   if (dateStr === '2025-09-24') return { start: '09:00', end: '21:00' };
   return null;
