@@ -58,6 +58,12 @@ export const EMPLOYEE_SCHEDULE_OVERRIDES = {
       6: [['09:00','17:00']]
     }
   },
+  // Kelly works Friday 2025-09-12 13:00-21:00 (one-off)
+  '2025-09-12': {
+    kelly: {
+      5: [['13:00','21:00']]
+    }
+  },
   // Kelly works Tuesday 2025-09-09 13:00-21:00 (one-off)
   '2025-09-09': {
     kelly: {
