@@ -9,7 +9,7 @@ import {
   where,
   writeBatch
 } from 'firebase/firestore';
-import { db } from '../firebase.js';
+import { db, auth, firebaseProjectId } from '../firebase.js';
 import dayjs from 'dayjs';
 
 const COLLECTION_NAME = 'appointments';
@@ -229,7 +229,12 @@ export const subscribeToAppointments = (callback) => {
   if (DEBUG_APPTS) console.log(`Processed appointments: ${totalAppts} appointments across ${totalDates} date(s)`);
       callback(appointments);
   }, (error) => {
-    console.error('Firebase subscription error:', error);
+    try {
+      const uid = auth?.currentUser?.uid;
+      console.error('Firebase subscription error:', error, { uid, projectId: firebaseProjectId });
+    } catch(_) {
+      console.error('Firebase subscription error:', error);
+    }
   });
   
   return unsubscribe;

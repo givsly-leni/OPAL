@@ -6,6 +6,7 @@ import { ScheduleGrid } from './components/ScheduleGrid';
 import { AppointmentForm } from './components/AppointmentForm';
 import { InstallPrompt } from './components/InstallPrompt';
 import { subscribeToAppointments } from './services/appointmentService';
+import { ensureAuth } from './firebase';
 import dayjs from 'dayjs';
 
 // Local debug flag for appointment logs (set REACT_APP_DEBUG_APPTS or VITE_DEBUG_APPTS)
@@ -73,18 +74,20 @@ function App() {
   const [appointments, setAppointments] = useState({});
   
   useEffect(() => {
-    // Subscribe to real-time updates from Firebase
-    const unsubscribe = subscribeToAppointments((newAppointments) => {
-      const totalDates = Object.keys(newAppointments || {}).length;
-      const totalAppts = Object.keys(newAppointments || {}).reduce((sum, k) => sum + ((newAppointments[k]||[]).length || 0), 0);
-  if (DEBUG_APPTS) console.log(`Firebase update: ${totalAppts} appointments across ${totalDates} date(s)`);
-      setAppointments(newAppointments);
-    });
+    let unsubscribe = () => {};
+    (async () => {
+      try { await ensureAuth(); } catch (_) {}
+      unsubscribe = subscribeToAppointments((newAppointments) => {
+        const totalDates = Object.keys(newAppointments || {}).length;
+        const totalAppts = Object.keys(newAppointments || {}).reduce((sum, k) => sum + ((newAppointments[k]||[]).length || 0), 0);
+        if (DEBUG_APPTS) console.log(`Firebase update: ${totalAppts} appointments across ${totalDates} date(s)`);
+        setAppointments(newAppointments);
+      });
+    })();
 
-    // Cleanup subscription on component unmount
     return () => {
-  if (DEBUG_APPTS) console.log('Cleaning up Firebase listener');
-      unsubscribe();
+      if (DEBUG_APPTS) console.log('Cleaning up Firebase listener');
+      try { unsubscribe && unsubscribe(); } catch(_){}
     };
   }, []);
   

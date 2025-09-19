@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthed() { return request.auth != null; }
+
+    // App collections
+    match /appointments/{id} {
+      allow read, write: if isAuthed();
+    }
+    match /customers/{id} {
+      allow read, write: if isAuthed();
+    }
+    match /waitlist/{id} {
+      allow read, write: if isAuthed();
+    }
+
+    // TEMPORARY OPTION (uncomment for public read only if needed to unblock):
+    // match /{document=**} {
+    //   allow read: if true;
+    // }
+  }
+}

@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 
 // Your web app's Firebase configuration
 // You'll need to replace this with your actual Firebase config
@@ -17,3 +18,21 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore
 export const db = getFirestore(app);
+
+// Initialize Auth
+export const auth = getAuth(app);
+
+// Ensure an authenticated session (anonymous)
+export async function ensureAuth() {
+  if (auth.currentUser) return auth.currentUser;
+  try {
+    const cred = await signInAnonymously(auth);
+    return cred.user || null;
+  } catch (e) {
+    console.warn('Anonymous sign-in failed', e);
+    return null;
+  }
+}
+
+// Expose the Firebase project id used by this build for diagnostics
+export const firebaseProjectId = app?.options?.projectId || undefined;
